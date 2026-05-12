@@ -111,6 +111,53 @@ func TestValidateRejectsMissingScope(t *testing.T) {
 	}
 }
 
+func TestValidateReportsAllLayerFailures(t *testing.T) {
+	policy := Policy{
+		Require: Requirements{
+			L2B: true,
+			L3:  true,
+			L5:  true,
+		},
+		Expected: Values{
+			Service: "payments",
+			Tenant:  "tenant-a",
+			Agent:   "agent-a",
+			Scopes:  []string{"read:orders"},
+		},
+	}
+
+	err := policy.Validate(Values{
+		Service: "billing",
+		Scopes:  []string{"write:orders"},
+	})
+	if !errors.Is(err, ErrMismatch) {
+		t.Fatalf("Validate() error = %v, want %v", err, ErrMismatch)
+	}
+	if !errors.Is(err, ErrMissingObserved) {
+		t.Fatalf("Validate() error = %v, want %v", err, ErrMissingObserved)
+	}
+
+	var validationErrs ValidationErrors
+	if !errors.As(err, &validationErrs) {
+		t.Fatalf("Validate() error = %T, want ValidationErrors", err)
+	}
+	if len(validationErrs) != 4 {
+		t.Fatalf("Validate() error count = %d, want 4", len(validationErrs))
+	}
+}
+
+func TestValidateRejectsBlankExpectedSetValue(t *testing.T) {
+	policy := Policy{
+		Require:  Requirements{L5: true},
+		Expected: Values{Scopes: []string{"read:orders", " "}},
+	}
+
+	err := Validate(policy, Values{Scopes: []string{"read:orders"}})
+	if !errors.Is(err, ErrMissingExpected) {
+		t.Fatalf("Validate() error = %v, want %v", err, ErrMissingExpected)
+	}
+}
+
 func TestValidateSkipsUnrequiredLayers(t *testing.T) {
 	policy := Policy{
 		Expected: Values{

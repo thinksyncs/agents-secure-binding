@@ -232,6 +232,10 @@ Callers are expected to:
 - call `identitypolicy.Validate`,
 - and treat validation errors as fail-closed for layers required by policy.
 
+`identitypolicy.Validate` reports all layer and field failures found in one
+pass. Callers can inspect `ValidationErrors` for per-field diagnostics, while
+still using `errors.Is` with the package sentinel errors.
+
 ## Suggested next step
 
 Decide which L2b through L5 inputs each CoCos deployment expects to enforce.

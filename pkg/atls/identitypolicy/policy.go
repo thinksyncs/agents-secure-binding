@@ -8,6 +8,7 @@ package identitypolicy
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 var (
@@ -55,6 +56,11 @@ type Policy struct {
 	Expected Values       `json:"expected" yaml:"expected"`
 }
 
+// Validate checks observed values against this policy.
+func (p Policy) Validate(observed Values) error {
+	return Validate(p, observed)
+}
+
 // ValidationError reports the exact layer and field that failed validation.
 type ValidationError struct {
 	Layer string
@@ -70,8 +76,28 @@ func (e *ValidationError) Unwrap() error {
 	return e.Err
 }
 
+// ValidationErrors reports all policy validation failures found in one pass.
+type ValidationErrors []*ValidationError
+
+func (e ValidationErrors) Error() string {
+	if len(e) == 1 {
+		return e[0].Error()
+	}
+	return fmt.Sprintf("%d identity policy validation errors", len(e))
+}
+
+func (e ValidationErrors) Unwrap() []error {
+	errs := make([]error, len(e))
+	for i, err := range e {
+		errs[i] = err
+	}
+	return errs
+}
+
 // Validate checks observed values against local expected policy values.
 func Validate(policy Policy, observed Values) error {
+	var errs ValidationErrors
+
 	if policy.Require.L2B {
 		if err := validateExactLayer(LayerL2B, policy.Expected, observed, []field{
 			{"service", func(v Values) string { return v.Service }},
@@ -79,7 +105,7 @@ func Validate(policy Policy, observed Values) error {
 			{"deployment", func(v Values) string { return v.Deployment }},
 			{"environment", func(v Values) string { return v.Environment }},
 		}); err != nil {
-			return err
+			errs = appendValidationErrors(errs, err)
 		}
 	}
 
@@ -89,7 +115,7 @@ func Validate(policy Policy, observed Values) error {
 			{"agent", func(v Values) string { return v.Agent }},
 			{"agent_public_key", func(v Values) string { return v.AgentPublicKey }},
 		}); err != nil {
-			return err
+			errs = appendValidationErrors(errs, err)
 		}
 	}
 
@@ -100,16 +126,19 @@ func Validate(policy Policy, observed Values) error {
 			{"thread_id", func(v Values) string { return v.ThreadID }},
 			{"delegation_id", func(v Values) string { return v.DelegationID }},
 		}); err != nil {
-			return err
+			errs = appendValidationErrors(errs, err)
 		}
 	}
 
 	if policy.Require.L5 {
 		if err := validateL5(policy.Expected, observed); err != nil {
-			return err
+			errs = appendValidationErrors(errs, err)
 		}
 	}
 
+	if len(errs) > 0 {
+		return errs
+	}
 	return nil
 }
 
@@ -119,62 +148,77 @@ type field struct {
 }
 
 func validateExactLayer(layer string, expected, observed Values, fields []field) error {
+	var errs ValidationErrors
 	hasExpected := false
 	for _, f := range fields {
 		want := f.get(expected)
-		if want == "" {
+		if isEmpty(want) {
 			continue
 		}
 		hasExpected = true
 		got := f.get(observed)
-		if got == "" {
-			return validationError(layer, f.name, ErrMissingObserved)
+		if isEmpty(got) {
+			errs = append(errs, validationError(layer, f.name, ErrMissingObserved))
+			continue
 		}
 		if got != want {
-			return validationError(layer, f.name, ErrMismatch)
+			errs = append(errs, validationError(layer, f.name, ErrMismatch))
 		}
 	}
 	if !hasExpected {
 		return validationError(layer, "*", ErrMissingExpected)
 	}
+	if len(errs) > 0 {
+		return errs
+	}
 	return nil
 }
 
 func validateL5(expected, observed Values) error {
+	var errs ValidationErrors
 	hasExpected := false
 	if len(expected.Scopes) > 0 {
 		hasExpected = true
 		if err := requireContainsAll(LayerL5, "scopes", expected.Scopes, observed.Scopes); err != nil {
-			return err
+			errs = appendValidationErrors(errs, err)
 		}
 	}
 	if len(expected.Resources) > 0 {
 		hasExpected = true
 		if err := requireContainsAll(LayerL5, "resources", expected.Resources, observed.Resources); err != nil {
-			return err
+			errs = appendValidationErrors(errs, err)
 		}
 	}
 	if len(expected.AuthorizationDetails) > 0 {
 		hasExpected = true
 		if err := requireContainsAll(LayerL5, "authorization_details", expected.AuthorizationDetails, observed.AuthorizationDetails); err != nil {
-			return err
+			errs = appendValidationErrors(errs, err)
 		}
 	}
 	if !hasExpected {
 		return validationError(LayerL5, "*", ErrMissingExpected)
 	}
+	if len(errs) > 0 {
+		return errs
+	}
 	return nil
 }
 
 func requireContainsAll(layer, fieldName string, expected, observed []string) error {
-	if len(observed) == 0 {
-		return validationError(layer, fieldName, ErrMissingObserved)
-	}
 	seen := make(map[string]struct{}, len(observed))
 	for _, value := range observed {
+		if isEmpty(value) {
+			continue
+		}
 		seen[value] = struct{}{}
 	}
+	if len(seen) == 0 {
+		return validationError(layer, fieldName, ErrMissingObserved)
+	}
 	for _, value := range expected {
+		if isEmpty(value) {
+			return validationError(layer, fieldName, ErrMissingExpected)
+		}
 		if _, ok := seen[value]; !ok {
 			return validationError(layer, fieldName, ErrMismatch)
 		}
@@ -182,10 +226,29 @@ func requireContainsAll(layer, fieldName string, expected, observed []string) er
 	return nil
 }
 
-func validationError(layer, field string, err error) error {
+func appendValidationErrors(errs ValidationErrors, err error) ValidationErrors {
+	if err == nil {
+		return errs
+	}
+	var validationErrors ValidationErrors
+	if errors.As(err, &validationErrors) {
+		return append(errs, validationErrors...)
+	}
+	var validationErr *ValidationError
+	if errors.As(err, &validationErr) {
+		return append(errs, validationErr)
+	}
+	return append(errs, validationError("*", "*", err))
+}
+
+func validationError(layer, field string, err error) *ValidationError {
 	return &ValidationError{
 		Layer: layer,
 		Field: field,
 		Err:   err,
 	}
+}
+
+func isEmpty(value string) bool {
+	return strings.TrimSpace(value) == ""
 }
