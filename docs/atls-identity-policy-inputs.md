@@ -188,7 +188,7 @@ A Session Binding Statement should include:
 
 - grant hash,
 - leaf public-key hash,
-- certificate request-context hash,
+- certificate request context hash,
 - attestation-binder hash when attestation is present,
 - audience or relying-service ID,
 - protocol name and version,
