@@ -214,7 +214,7 @@ in this order:
 1. Verify the Identity Grant under a trusted Manager or policy-authority key.
 2. Check grant issuer, audience, expiration, grant ID, and required scope or
    resource fields.
-3. Verify that the Session Binding Statement signature key matches the grant
+3. Verify that the Session Binding Statement signature key matches the accepted endpoint key, or the grant
    confirmation key.
 4. Verify that the statement grant hash matches the verified Identity Grant.
 5. Verify that the statement audience matches the relying service or client.
