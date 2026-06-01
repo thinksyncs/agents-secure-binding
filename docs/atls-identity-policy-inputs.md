@@ -457,6 +457,14 @@ expected-versus-observed comparison model and session-bound assertion validation
 described above. The aTLS client transport calls it when
 `atls.ClientConfig.IdentityPolicy` is enabled.
 
+The same package also provides a helper for the post-authentication step:
+`identitypolicy.NewAssertionFromSessionBinding` builds an internal `Assertion`
+from an already-authenticated Identity Grant and an already-verified Session
+Binding Statement. It does not parse wire tokens or verify signatures; it only
+checks that the statement is tied to the grant, audience, allowed confirmation
+key, and minimum session-binding fields before the assertion is compared with
+the accepted aTLS session.
+
 Callers are expected to:
 
 - build a local `Policy` from trusted deployment or authorization inputs,
