@@ -75,27 +75,9 @@ func createTransport(cfg clients.ClientConfiguration) (*http.Transport, tls.Secu
 			return nil, security, err
 		}
 
-		tlsConfig := result.Config.Clone()
-		tlsConfig.MinVersion = stdtls.VersionTLS13
-		atlsConfig := &atls.ClientConfig{
-			TLSConfig:         tlsConfig,
-			VerifyOptions:     atls.VerifyOptionsFromTLSConfig(tlsConfig),
-			AttestationPolicy: atls.VerificationPolicyFromEvidenceVerifier(atls.NewEvidenceVerifier(agcfg.AttestationPolicy)),
-		}
-		requestContext, err := agcfg.RequestContext()
+		atlsConfig, err := buildATLSClientConfig(agcfg, result.Config)
 		if err != nil {
 			return nil, security, err
-		}
-		if len(requestContext) > 0 {
-			req, err := atls.NewRequest(requestContext)
-			if err != nil {
-				return nil, security, err
-			}
-			atlsConfig.Request = req
-		} else {
-			atlsConfig.RequestBuilder = func() (*atls.AuthenticatorRequest, error) {
-				return atls.NewRandomRequest(32)
-			}
 		}
 
 		transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -119,6 +101,36 @@ func createTransport(cfg clients.ClientConfiguration) (*http.Transport, tls.Secu
 	}
 
 	return transport, security, nil
+}
+
+func buildATLSClientConfig(agcfg *clients.AttestedClientConfig, baseTLSConfig *stdtls.Config) (*atls.ClientConfig, error) {
+	tlsConfig := baseTLSConfig.Clone()
+	tlsConfig.MinVersion = stdtls.VersionTLS13
+	atlsConfig := &atls.ClientConfig{
+		TLSConfig:         tlsConfig,
+		VerifyOptions:     atls.VerifyOptionsFromTLSConfig(tlsConfig),
+		AttestationPolicy: atls.VerificationPolicyFromEvidenceVerifier(atls.NewEvidenceVerifier(agcfg.AttestationPolicy)),
+		IdentityPolicy:    agcfg.IdentityPolicy,
+		IdentityGrant:     agcfg.IdentityGrant,
+		IdentityBinding:   agcfg.IdentityBinding,
+		IdentityReplay:    agcfg.IdentityReplay,
+	}
+	requestContext, err := agcfg.RequestContext()
+	if err != nil {
+		return nil, err
+	}
+	if len(requestContext) > 0 {
+		req, err := atls.NewRequest(requestContext)
+		if err != nil {
+			return nil, err
+		}
+		atlsConfig.Request = req
+	} else {
+		atlsConfig.RequestBuilder = func() (*atls.AuthenticatorRequest, error) {
+			return atls.NewRandomRequest(32)
+		}
+	}
+	return atlsConfig, nil
 }
 
 func httpDialTarget(network, addr string) (string, string) {

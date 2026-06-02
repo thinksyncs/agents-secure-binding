@@ -146,6 +146,112 @@ func TestValidateIdentityPolicyAcceptsObservedIdentity(t *testing.T) {
 	}
 }
 
+func TestValidateIdentityPolicyAcceptsVerifiedGrantAndBinding(t *testing.T) {
+	validation := validationResultForIdentityPolicy(t)
+	binding := bindingForAssertion(t, validation)
+	binding.Nonce = "identity-binding-nonce"
+	cfg := &ClientConfig{
+		IdentityPolicy: identitypolicy.Policy{
+			Require:  identitypolicy.Requirements{L2B: true, L3: true},
+			Expected: identitypolicy.Values{Service: "payments", Agent: "agent-a"},
+		},
+		IdentityGrant: &identitypolicy.VerifiedGrant{
+			Issuer:          "manager-key-1",
+			Audience:        "client-a",
+			GrantHash:       "sha256:grant",
+			ConfirmationKey: "agent-confirmation-key",
+			Values:          identitypolicy.Values{Service: "payments", Agent: "agent-a"},
+			IssuedAt:        time.Now().Add(-time.Minute),
+			ExpiresAt:       time.Now().Add(time.Hour),
+		},
+		IdentityBinding: &identitypolicy.VerifiedSessionBindingStatement{
+			GrantHash: "sha256:grant",
+			Audience:  "client-a",
+			SignerKey: "agent-confirmation-key",
+			Binding:   binding,
+		},
+	}
+
+	if err := validateIdentityPolicy(cfg, &tls.ConnectionState{}, validation); err != nil {
+		t.Fatalf("validateIdentityPolicy() error = %v", err)
+	}
+}
+
+func TestValidateIdentityPolicyRejectsVerifiedGrantReplay(t *testing.T) {
+	validation := validationResultForIdentityPolicy(t)
+	binding := bindingForAssertion(t, validation)
+	binding.Nonce = "identity-binding-nonce"
+	replayCache := newTransportReplayCache()
+	cfg := &ClientConfig{
+		IdentityPolicy: identitypolicy.Policy{
+			Require:  identitypolicy.Requirements{L2B: true},
+			Expected: identitypolicy.Values{Service: "payments"},
+		},
+		IdentityGrant: &identitypolicy.VerifiedGrant{
+			Issuer:          "manager-key-1",
+			Audience:        "client-a",
+			GrantHash:       "sha256:grant",
+			ConfirmationKey: "agent-confirmation-key",
+			Values:          identitypolicy.Values{Service: "payments"},
+			IssuedAt:        time.Now().Add(-time.Minute),
+			ExpiresAt:       time.Now().Add(time.Hour),
+		},
+		IdentityBinding: &identitypolicy.VerifiedSessionBindingStatement{
+			GrantHash: "sha256:grant",
+			Audience:  "client-a",
+			SignerKey: "agent-confirmation-key",
+			Binding:   binding,
+		},
+		IdentityReplay: replayCache,
+	}
+
+	if err := validateIdentityPolicy(cfg, &tls.ConnectionState{}, validation); err != nil {
+		t.Fatalf("validateIdentityPolicy() first error = %v", err)
+	}
+	err := validateIdentityPolicy(cfg, &tls.ConnectionState{}, validation)
+	if !errors.Is(err, identitypolicy.ErrReplayDetected) {
+		t.Fatalf("validateIdentityPolicy() replay error = %v, want %v", err, identitypolicy.ErrReplayDetected)
+	}
+}
+
+func TestValidateIdentityPolicyDoesNotConsumeReplayOnPolicyMismatch(t *testing.T) {
+	validation := validationResultForIdentityPolicy(t)
+	binding := bindingForAssertion(t, validation)
+	binding.Nonce = "identity-binding-nonce"
+	replayCache := newTransportReplayCache()
+	cfg := &ClientConfig{
+		IdentityPolicy: identitypolicy.Policy{
+			Require:  identitypolicy.Requirements{L2B: true},
+			Expected: identitypolicy.Values{Service: "payments"},
+		},
+		IdentityGrant: &identitypolicy.VerifiedGrant{
+			Issuer:          "manager-key-1",
+			Audience:        "client-a",
+			GrantHash:       "sha256:grant",
+			ConfirmationKey: "agent-confirmation-key",
+			Values:          identitypolicy.Values{Service: "analytics"},
+			IssuedAt:        time.Now().Add(-time.Minute),
+			ExpiresAt:       time.Now().Add(time.Hour),
+		},
+		IdentityBinding: &identitypolicy.VerifiedSessionBindingStatement{
+			GrantHash: "sha256:grant",
+			Audience:  "client-a",
+			SignerKey: "agent-confirmation-key",
+			Binding:   binding,
+		},
+		IdentityReplay: replayCache,
+	}
+
+	err := validateIdentityPolicy(cfg, &tls.ConnectionState{}, validation)
+	if !errors.Is(err, identitypolicy.ErrMismatch) {
+		t.Fatalf("validateIdentityPolicy() mismatch error = %v, want %v", err, identitypolicy.ErrMismatch)
+	}
+	cfg.IdentityGrant.Values.Service = "payments"
+	if err := validateIdentityPolicy(cfg, &tls.ConnectionState{}, validation); err != nil {
+		t.Fatalf("validateIdentityPolicy() second error = %v", err)
+	}
+}
+
 func TestValidateIdentityPolicyRejectsObservedIdentityMismatch(t *testing.T) {
 	validation := validationResultForIdentityPolicy(t)
 	binding := bindingForAssertion(t, validation)
@@ -238,4 +344,20 @@ func bindingForAssertion(t *testing.T, validation *ea.ValidationResult) identity
 	}
 	binding.ExpiresAt = time.Now().Add(time.Hour)
 	return binding
+}
+
+type transportReplayCache struct {
+	seen map[string]time.Time
+}
+
+func newTransportReplayCache() *transportReplayCache {
+	return &transportReplayCache{seen: make(map[string]time.Time)}
+}
+
+func (c *transportReplayCache) MarkUsed(key string, expiresAt time.Time) error {
+	if _, ok := c.seen[key]; ok {
+		return identitypolicy.ErrReplayDetected
+	}
+	c.seen[key] = expiresAt
+	return nil
 }

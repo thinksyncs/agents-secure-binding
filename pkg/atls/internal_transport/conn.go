@@ -39,6 +39,9 @@ type ClientConfig struct {
 	AttestationPolicy eaattestation.VerificationPolicy
 	IdentityPolicy    identitypolicy.Policy
 	ObservedIdentity  ObservedIdentityFunc
+	IdentityGrant     *identitypolicy.VerifiedGrant
+	IdentityBinding   *identitypolicy.VerifiedSessionBindingStatement
+	IdentityReplay    identitypolicy.ReplayCache
 	Request           *ea.AuthenticatorRequest
 	RequestBuilder    func() (*ea.AuthenticatorRequest, error)
 }
@@ -166,10 +169,8 @@ func validateIdentityPolicy(cfg *ClientConfig, st *tls.ConnectionState, validati
 	if !cfg.IdentityPolicy.Enabled() {
 		return nil
 	}
-	if cfg.ObservedIdentity == nil {
-		return ErrMissingObservedIdentity
-	}
-	assertion, err := cfg.ObservedIdentity(st, validation)
+	now := time.Now()
+	assertion, statement, err := observedIdentityAssertion(cfg, st, validation, now)
 	if err != nil {
 		return fmt.Errorf("atls: observed identity source failed: %w", err)
 	}
@@ -177,10 +178,27 @@ func validateIdentityPolicy(cfg *ClientConfig, st *tls.ConnectionState, validati
 	if err != nil {
 		return err
 	}
-	if err := cfg.IdentityPolicy.ValidateAssertion(assertion, expectedBinding, time.Now()); err != nil {
+	if err := cfg.IdentityPolicy.ValidateAssertion(assertion, expectedBinding, now); err != nil {
 		return fmt.Errorf("atls: identity policy validation failed: %w", err)
 	}
+	if statement != nil {
+		if err := identitypolicy.MarkSessionBindingUsed(cfg.IdentityReplay, *statement); err != nil {
+			return fmt.Errorf("atls: identity replay check failed: %w", err)
+		}
+	}
 	return nil
+}
+
+func observedIdentityAssertion(cfg *ClientConfig, st *tls.ConnectionState, validation *ea.ValidationResult, now time.Time) (identitypolicy.Assertion, *identitypolicy.VerifiedSessionBindingStatement, error) {
+	if cfg.ObservedIdentity != nil {
+		assertion, err := cfg.ObservedIdentity(st, validation)
+		return assertion, nil, err
+	}
+	if cfg.IdentityGrant == nil || cfg.IdentityBinding == nil {
+		return identitypolicy.Assertion{}, nil, ErrMissingObservedIdentity
+	}
+	assertion, err := identitypolicy.NewAssertionFromSessionBinding(*cfg.IdentityGrant, *cfg.IdentityBinding, now)
+	return assertion, cfg.IdentityBinding, err
 }
 
 func expectedIdentityBinding(validation *ea.ValidationResult) (identitypolicy.Binding, error) {

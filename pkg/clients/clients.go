@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/ultravioletrs/cocos/pkg/atls/identitypolicy"
 )
 
 var (
@@ -42,7 +44,11 @@ type AttestedClientConfig struct {
 	AttestationRequestContextHex string `env:"ATTESTATION_REQUEST_CONTEXT" envDefault:""`
 	// AttestationRequestContext allows callers inside the same process to pass
 	// raw request-context bytes directly instead of using the hex string form.
-	AttestationRequestContext []byte `env:"-"`
+	AttestationRequestContext []byte                                          `env:"-"`
+	IdentityPolicy            identitypolicy.Policy                           `env:"-"`
+	IdentityGrant             *identitypolicy.VerifiedGrant                   `env:"-"`
+	IdentityBinding           *identitypolicy.VerifiedSessionBindingStatement `env:"-"`
+	IdentityReplay            identitypolicy.ReplayCache                      `env:"-"`
 }
 
 func (c AttestedClientConfig) Config() StandardClientConfig {

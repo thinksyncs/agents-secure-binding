@@ -4,12 +4,14 @@
 package http
 
 import (
+	stdtls "crypto/tls"
 	"net/http"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/ultravioletrs/cocos/pkg/atls/identitypolicy"
 	"github.com/ultravioletrs/cocos/pkg/clients"
 	"github.com/ultravioletrs/cocos/pkg/tls"
 )
@@ -239,6 +241,47 @@ func TestCreateTransport_ATLSCustomRequestContext(t *testing.T) {
 	assert.NotNil(t, transport.DialTLSContext)
 }
 
+func TestBuildATLSClientConfigCopiesIdentityBindingInputs(t *testing.T) {
+	grant := &identitypolicy.VerifiedGrant{
+		Issuer:          "manager-key-1",
+		Audience:        "client-a",
+		GrantHash:       "sha256:grant",
+		ConfirmationKey: "agent-confirmation-key",
+		Values:          identitypolicy.Values{Service: "payments"},
+		IssuedAt:        time.Now().Add(-time.Minute),
+		ExpiresAt:       time.Now().Add(time.Hour),
+	}
+	binding := &identitypolicy.VerifiedSessionBindingStatement{
+		GrantHash: "sha256:grant",
+		Audience:  "client-a",
+		SignerKey: "agent-confirmation-key",
+		Binding: identitypolicy.Binding{
+			LeafPublicKeySHA256:  "leaf",
+			RequestContextSHA256: "ctx",
+			Nonce:                "nonce",
+			ExpiresAt:            time.Now().Add(time.Minute),
+		},
+	}
+	replay := newHTTPReplayCache()
+	agcfg := &clients.AttestedClientConfig{
+		IdentityPolicy: identitypolicy.Policy{
+			Require:  identitypolicy.Requirements{L2B: true},
+			Expected: identitypolicy.Values{Service: "payments"},
+		},
+		IdentityGrant:   grant,
+		IdentityBinding: binding,
+		IdentityReplay:  replay,
+	}
+
+	atlsConfig, err := buildATLSClientConfig(agcfg, &stdtls.Config{})
+
+	assert.NoError(t, err)
+	assert.Equal(t, agcfg.IdentityPolicy, atlsConfig.IdentityPolicy)
+	assert.Same(t, grant, atlsConfig.IdentityGrant)
+	assert.Same(t, binding, atlsConfig.IdentityBinding)
+	assert.Same(t, replay, atlsConfig.IdentityReplay)
+}
+
 func TestCreateTransport_ATLSInvalidRequestContext(t *testing.T) {
 	policyFile, err := os.CreateTemp("", "attestation_policy.json")
 	assert.NoError(t, err)
@@ -265,6 +308,16 @@ func TestCreateTransport_ATLSInvalidRequestContext(t *testing.T) {
 	assert.Nil(t, transport)
 	assert.Equal(t, tls.WithoutTLS, security)
 	assert.Contains(t, err.Error(), "invalid attestation request context")
+}
+
+type httpReplayCache struct{}
+
+func newHTTPReplayCache() *httpReplayCache {
+	return &httpReplayCache{}
+}
+
+func (c *httpReplayCache) MarkUsed(string, time.Time) error {
+	return nil
 }
 
 func TestCreateTransport_BasicTLSError(t *testing.T) {
