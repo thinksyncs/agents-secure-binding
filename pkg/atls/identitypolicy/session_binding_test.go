@@ -80,6 +80,30 @@ func TestNewAssertionFromSessionBindingRejectsGrantWithoutBindingKey(t *testing.
 	}
 }
 
+func TestNewAssertionFromSessionBindingRejectsUnsafeGrantValue(t *testing.T) {
+	now := time.Now()
+	grant := testVerifiedGrant(now)
+	grant.Values.Service = "<script>"
+	statement := testSessionBindingStatement(now)
+
+	_, err := NewAssertionFromSessionBinding(grant, statement, now)
+	if !errors.Is(err, ErrUnsafeValue) {
+		t.Fatalf("NewAssertionFromSessionBinding() error = %v, want %v", err, ErrUnsafeValue)
+	}
+}
+
+func TestNewAssertionFromSessionBindingRejectsUnsafeAuthorizedEndpointKey(t *testing.T) {
+	now := time.Now()
+	grant := testVerifiedGrant(now)
+	grant.AuthorizedEndpointKeys = []string{"<script>"}
+	statement := testSessionBindingStatement(now)
+
+	_, err := NewAssertionFromSessionBinding(grant, statement, now)
+	if !errors.Is(err, ErrUnsafeValue) {
+		t.Fatalf("NewAssertionFromSessionBinding() error = %v, want %v", err, ErrUnsafeValue)
+	}
+}
+
 func TestNewAssertionFromSessionBindingAcceptsAuthorizedEndpointKey(t *testing.T) {
 	now := time.Now()
 	grant := testVerifiedGrant(now)
@@ -89,6 +113,22 @@ func TestNewAssertionFromSessionBindingAcceptsAuthorizedEndpointKey(t *testing.T
 
 	if _, err := NewAssertionFromSessionBinding(grant, statement, now); err != nil {
 		t.Fatalf("NewAssertionFromSessionBinding() error = %v", err)
+	}
+}
+
+func TestNewAssertionFromSessionBindingWithOptionsRejectsReplay(t *testing.T) {
+	now := time.Now()
+	grant := testVerifiedGrant(now)
+	statement := testSessionBindingStatement(now)
+	cache := newTestReplayCache()
+	opts := SessionBindingOptions{Now: now, ReplayCache: cache}
+
+	if _, err := NewAssertionFromSessionBindingWithOptions(grant, statement, opts); err != nil {
+		t.Fatalf("NewAssertionFromSessionBindingWithOptions() first error = %v", err)
+	}
+	_, err := NewAssertionFromSessionBindingWithOptions(grant, statement, opts)
+	if !errors.Is(err, ErrReplayDetected) {
+		t.Fatalf("NewAssertionFromSessionBindingWithOptions() replay error = %v, want %v", err, ErrReplayDetected)
 	}
 }
 
@@ -102,6 +142,22 @@ func TestNewAssertionFromSessionBindingRejectsGrantHashMismatch(t *testing.T) {
 	if !errors.Is(err, ErrMismatch) {
 		t.Fatalf("NewAssertionFromSessionBinding() error = %v, want %v", err, ErrMismatch)
 	}
+}
+
+type testReplayCache struct {
+	seen map[string]time.Time
+}
+
+func newTestReplayCache() *testReplayCache {
+	return &testReplayCache{seen: make(map[string]time.Time)}
+}
+
+func (c *testReplayCache) MarkUsed(key string, expiresAt time.Time) error {
+	if _, ok := c.seen[key]; ok {
+		return ErrReplayDetected
+	}
+	c.seen[key] = expiresAt
+	return nil
 }
 
 func TestNewAssertionFromSessionBindingRejectsAudienceMismatch(t *testing.T) {

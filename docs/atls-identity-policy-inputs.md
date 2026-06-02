@@ -463,14 +463,25 @@ from an already-authenticated Identity Grant and an already-verified Session
 Binding Statement. It does not parse wire tokens or verify signatures; it only
 checks that the statement is tied to the grant, audience, allowed confirmation
 key, and minimum session-binding fields before the assertion is compared with
-the accepted aTLS session.
+the accepted aTLS session. `identitypolicy.SessionBindingOptions` can also
+attach a replay cache for one-shot binding nonces.
+
+The aTLS client config supports both integration styles. Callers can provide a
+custom `ObservedIdentity` callback, or they can pass a verified Identity Grant,
+a verified Session Binding Statement, and an optional replay cache directly on
+`atls.ClientConfig`. In both cases, the transport validates the resulting
+assertion against the accepted aTLS session before returning the connection. For
+the direct grant/statement path, replay-cache marking happens only after the
+session-binding and local policy comparison succeed.
 
 Callers are expected to:
 
 - build a local `Policy` from trusted deployment or authorization inputs,
-- extract an observed `Assertion` from the appropriate CoCos layer,
-- call `identitypolicy.ValidateAssertion`, or provide the assertion through
-  `atls.ClientConfig.ObservedIdentity`,
+- extract or provide a verified observed identity assertion from the appropriate
+  CoCos layer,
+- call `identitypolicy.ValidateAssertion`, provide the assertion through
+  `atls.ClientConfig.ObservedIdentity`, or configure the verified grant and
+  session-binding fields on `atls.ClientConfig`,
 - and treat validation errors as fail-closed for layers required by policy.
 
 `identitypolicy.Validate` reports all layer and field failures found in one
