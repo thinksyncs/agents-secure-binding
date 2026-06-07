@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agtp-atls-profile-test-vector.schema.json",
+  "title": "AGTP aTLS Security-Profile Test Vector",
+  "type": "object",
+  "required": [
+    "id",
+    "class",
+    "expected_result",
+    "atls",
+    "grant",
+    "session_binding",
+    "local_policy"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "class": {
+      "type": "string",
+      "enum": [
+        "baseline",
+        "relay",
+        "diversion",
+        "wrong-agent",
+        "replay",
+        "binding-parameter-confusion",
+        "downgrade",
+        "stale-evidence",
+        "measurement-mismatch",
+        "policy-denied"
+      ]
+    },
+    "expected_result": {
+      "type": "string",
+      "enum": [
+        "accept",
+        "reject"
+      ]
+    },
+    "expected_error": {
+      "type": "string"
+    },
+    "atls": {
+      "$ref": "#/$defs/atls"
+    },
+    "grant": {
+      "$ref": "#/$defs/grant"
+    },
+    "session_binding": {
+      "$ref": "#/$defs/session_binding"
+    },
+    "local_policy": {
+      "$ref": "#/$defs/local_policy"
+    },
+    "replay_cache": {
+      "$ref": "#/$defs/replay_cache"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "atls": {
+      "type": "object",
+      "required": [
+        "accepted_key_fingerprint",
+        "exporter_label",
+        "exporter_context",
+        "attestation_verified"
+      ],
+      "properties": {
+        "accepted_key_fingerprint": {
+          "type": "string"
+        },
+        "exporter_label": {
+          "type": "string"
+        },
+        "exporter_context": {
+          "type": "string"
+        },
+        "attestation_verified": {
+          "type": "boolean"
+        },
+        "measurement": {
+          "type": "string"
+        }
+      }
+    },
+    "grant": {
+      "type": "object",
+      "required": [
+        "signature_valid",
+        "issuer",
+        "audience",
+        "grant_id",
+        "confirmation_key_id",
+        "values",
+        "expires_at"
+      ],
+      "properties": {
+        "signature_valid": {
+          "type": "boolean"
+        },
+        "issuer": {
+          "type": "string"
+        },
+        "audience": {
+          "type": "string"
+        },
+        "grant_id": {
+          "type": "string"
+        },
+        "confirmation_key_id": {
+          "type": "string"
+        },
+        "values": {
+          "$ref": "#/$defs/identity_values"
+        },
+        "expires_at": {
+          "type": "string"
+        }
+      }
+    },
+    "session_binding": {
+      "type": "object",
+      "required": [
+        "signature_valid",
+        "signer_key_id",
+        "binding_id",
+        "grant_hash",
+        "accepted_key_fingerprint",
+        "exporter_context",
+        "expires_at"
+      ],
+      "properties": {
+        "signature_valid": {
+          "type": "boolean"
+        },
+        "signer_key_id": {
+          "type": "string"
+        },
+        "binding_id": {
+          "type": "string"
+        },
+        "grant_hash": {
+          "type": "string"
+        },
+        "accepted_key_fingerprint": {
+          "type": "string"
+        },
+        "exporter_context": {
+          "type": "string"
+        },
+        "expires_at": {
+          "type": "string"
+        }
+      }
+    },
+    "local_policy": {
+      "type": "object",
+      "required": [
+        "trusted_issuer",
+        "audience",
+        "expected_values",
+        "required_capabilities"
+      ],
+      "properties": {
+        "trusted_issuer": {
+          "type": "string"
+        },
+        "audience": {
+          "type": "string"
+        },
+        "expected_values": {
+          "$ref": "#/$defs/identity_values"
+        },
+        "required_capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "identity_values": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string"
+        },
+        "tenant": {
+          "type": "string"
+        },
+        "deployment": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "task": {
+          "type": "string"
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "replay_cache": {
+      "type": "object",
+      "properties": {
+        "seen_binding_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "seen_grant_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
