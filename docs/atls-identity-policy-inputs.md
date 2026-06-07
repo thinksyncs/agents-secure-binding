@@ -160,32 +160,56 @@ handling for that key source.
 
 ### Initial production profile
 
-The recommended initial production profile is intentionally small:
+The initial production profile is intentionally small. It is a local CoCos
+profile for fail-closed deployment behavior, not a new IETF standard profile.
 
-- Manager keys are configured locally by `kid`, algorithm, and public key.
-- Identity Grants are short-lived.
-- Optional local denylists cover revoked grant `jti` values and disabled
-  Manager-key `kid` values.
-- Unknown or disabled `kid` values fail closed.
-- `MemoryReplayCache` is suitable only for tests and single-process deployments.
-- Multi-instance deployments should use a shared replay cache, such as
-  Redis-compatible `SET NX EX` semantics keyed by the session-binding nonce or
-  binding statement ID.
-- The core package exposes a `SetNXStore` adapter shape for Redis-compatible
-  replay storage without making Redis mandatory for local tests or debugging.
-- Production identity policy has two modes: disabled or required. Required mode
-  fails closed when the policy, Identity Grant, Session Binding Statement,
-  trusted Manager key, expected binding, or replay check is missing or invalid.
+Production identity policy has two modes: disabled or required. In required
+mode, the client must fail closed when any required policy input is missing,
+untrusted, expired, replayed, or inconsistent with the accepted aTLS session.
+In particular, the client must not treat peer-provided metadata as expected
+policy.
 
-JWKS, DNS-AID, registry-based discovery, and centralized revocation APIs can be
-added later. They should not replace the local trust decision unless freshness,
-cache lifetime, revocation behavior, and fail-closed handling are specified.
+The required-mode profile has the following minimum requirements:
+
+| Area | Requirement |
+| --- | --- |
+| Manager trust | Manager or policy-authority verification keys are configured locally by `kid`, algorithm, issuer, audience, and public key, or loaded through an equivalent fail-closed key source. |
+| Grant lifetime | Identity Grants are short-lived and carry `iat`, `exp`, and a unique `jti`. |
+| Grant revocation | A deployment can reject revoked grant `jti` values and disabled Manager-key `kid` values before `exp`. |
+| Unknown keys | Unknown, disabled, retired, or stale `kid` values fail closed. |
+| Session binding | Session Binding Statements are signed by the confirmation key named in the verified Identity Grant, or by another endpoint key explicitly authorized by that grant or local policy. |
+| aTLS binding | Session Binding Statements carry the accepted aTLS leaf-key hash, request-context hash, and a one-shot nonce. When attestation is present, they should also carry the attestation-binder hash. |
+| Replay | Single-process deployments may use `MemoryReplayCache`; multi-instance production deployments should use a shared replay cache with `SET NX EX`-style semantics. |
+| Error handling | Failure to check keys, revocation, session binding, replay, or local identity policy is an authentication failure, not a warning. |
+
+The initial JWT/JWS profile fixes the mandatory claim set below. A deployment
+may add claims, but it must not remove these checks when identity policy is
+required.
+
+| Token | Mandatory claims |
+| --- | --- |
+| Identity Grant | `agtp_type`, `agtp_version`, `iss`, `aud`, `sub`, `jti`, `iat`, `exp`, `cnf.kid` |
+| Session Binding Statement | `agtp_type`, `agtp_version`, `aud`, `jti`, `iat`, `exp`, `grant_hash`, `leaf_public_key_sha256`, `request_context_sha256`, `nonce` |
+
+The profile keeps direct-Agent and gateway-terminated deployments separate:
+
+- Direct-Agent profile: the Agent terminates aTLS and signs the Session Binding
+  Statement with the confirmation key named by the verified Identity Grant.
+- Gateway-routed profile: the gateway terminates aTLS. The deployment must also
+  authenticate the gateway-to-Agent route before treating the intended Agent as
+  accepted. Gateway session binding alone proves the gateway endpoint, not the
+  final Agent process.
+
+JWKS, DNS-AID, registry-based discovery, centralized revocation APIs, and
+Redis-compatible replay stores can be added as production integrations. They do
+not replace the local trust decision unless freshness, cache lifetime,
+revocation behavior, and fail-closed handling are specified.
 
 In implementation terms, AGTP can be introduced as a post-aTLS handshake before
-changing the aTLS wire protocol. The AGTP step would authenticate the grant,
-verify the session binding statement against the accepted aTLS session, enforce
-any replay policy, and then call the same `identitypolicy` validator used by the
-current Go API.
+changing the aTLS wire protocol. The AGTP step authenticates the grant, verifies
+the session binding statement against the accepted aTLS session, enforces replay
+policy, and then calls the same `identitypolicy` validator used by the current
+Go API.
 
 ## OIDC and OAuth-style mapping
 
