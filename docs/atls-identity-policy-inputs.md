@@ -171,6 +171,8 @@ The recommended initial production profile is intentionally small:
 - Multi-instance deployments should use a shared replay cache, such as
   Redis-compatible `SET NX EX` semantics keyed by the session-binding nonce or
   binding statement ID.
+- The core package exposes a `SetNXStore` adapter shape for Redis-compatible
+  replay storage without making Redis mandatory for local tests or debugging.
 - Production identity policy has two modes: disabled or required. Required mode
   fails closed when the policy, Identity Grant, Session Binding Statement,
   trusted Manager key, expected binding, or replay check is missing or invalid.
