@@ -1,80 +1,94 @@
-<div align="center">
+# AGTP aTLS Profile
 
-# Cocos AI 🥥
+This repository explores an aTLS-backed security profile for AGTP.
 
-**Confidential Computing System for AI**
+The goal is to make AGTP deployments easier to review for relay resistance,
+diversion resistance, same-machine wrong-agent confusion, replay resistance, and
+binding-parameter confusion.
 
-**Made with ❤️ by [Ultraviolet](https://ultraviolet.rs/)**
+This repository does not define the AGTP core protocol. It is intended as a
+companion security profile, implementation-feedback workspace, and test-vector
+set for existing AGTP work.
 
-[![codecov](https://codecov.io/gh/ultravioletrs/cocos/graph/badge.svg?token=HX01LR01K9)](https://codecov.io/gh/ultravioletrs/cocos)
-[![Go report card](https://goreportcard.com/badge/github.com/ultravioletrs/cocos)](https://goreportcard.com/report/github.com/ultravioletrs/cocos)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+## Focus
 
-### [Guide](https://docs.cocos.ultraviolet.rs) | [Contributing](CONTRIBUTING.md) | [Website](https://cocos.ai/)
+- aTLS session binding for AGTP profile data
+- Manager-signed identity grants
+- Session Binding Statements tied to the accepted aTLS session
+- local expected-value checks for deployment, agent, task, and capability
+- negative test vectors for relay, diversion, wrong-agent, replay, downgrade,
+  stale evidence, measurement mismatch, and binding-parameter confusion
 
-</div>
+## Non-Goals
 
-## Introduction 🚀
+- redefining AGTP core messages
+- replacing AGTP transport choices
+- replacing Cocos
+- defining a complete OAuth or OIDC profile
+- inventing new cryptography
 
-Cocos AI is a **cutting-edge platform** designed to enable secure multiparty computation (SMPC) using **Confidential Computing** and **Trusted Execution Environments (TEEs)**.
+## Repository Layout
 
-It empowers organizations to collaboratively process sensitive data for AI/ML workloads while ensuring:
+- `docs/architecture.md`: security-profile architecture and role split
+- `docs/threat-model.md`: relay, diversion, wrong-agent, replay, and downgrade
+  threat model
+- `docs/agtp-atls-binding-profile.md`: aTLS binding expectations for AGTP
+- `docs/agtp-security-profile-mapping.md`: profile validation state machine and
+  error mapping
+- `docs/agtp-security-profile-feedback.md`: draft-feedback scope and boundaries
+- `interop/testvectors/`: positive and negative security-profile vectors
+- `pkg/agtp/`: AGTP identity grant and session-binding helpers
+- `pkg/atls/identitypolicy/`: local expected-value policy checks
 
-- 🔒 **Data Privacy**: Your data stays encrypted and secure throughout the computation.
-- 🛡️ **Trust and Integrity**: Protected by hardware enclaves with robust remote attestation protocols.
-- 🤝 **Seamless Collaboration**: Multiple organizations can work together without exposing sensitive information.
+## Test Vectors
 
-<p align="center">
-  <img src="https://cocos.ai/images/Collaborative%20AI.drawio.svg" alt="Cocos AI Illustration" width="400" height="400">
-</p>
+The initial test-vector set is in `interop/testvectors/vectors.jsonl`.
 
-## Features 🛠️
+It covers:
 
-Cocos AI provides essential features for secure and efficient collaborative AI/ML:
+- baseline acceptance
+- relay or borrowed-evidence rejection
+- diversion rejection
+- same-machine wrong-agent rejection
+- replay rejection
+- binding-parameter confusion rejection
+- downgrade rejection
+- stale-evidence rejection
+- measurement-mismatch rejection
+- policy-denied rejection
 
-- 🖥️ **TEE Enablement and Monitoring**: Secure VM management for deploying and monitoring workloads.
-- 🛡️ **Hardware Abstraction Layer (HAL)**: Built on a hardened Linux kernel, secure bootloader, and minimal root filesystem (minimal TCB).
-- 🕵️ **In-Enclave Agent and Networking Controller**: Essential system software for managing secure workloads.
-- 🔒 **Encrypted Data Transfer**: Asynchronous data transfer and secure result delivery.
-- 🛠️ **API for Platform Manipulation**: Programmatic control for managing workloads.
-- ✅ **Attestation and Verification Tools**: Hardware- and software-supported attestation for integrity assurance.
-- 🖱️ **Command-Line Interface (CLI)**: A user-friendly CLI for system interaction.
+The vectors are profile-level vectors. They do not define AGTP core syntax.
 
-## 🚀 Quick Start
+## Relationship to Cocos
 
-### Clone the Repository and Build Binaries
-```bash
-git clone git@github.com:ultravioletrs/cocos.git
-make
+This repository started from Cocos aTLS implementation experience. Cocos is
+treated here as related implementation experience and as a source of concrete
+security-profile requirements.
+
+This repository does not replace Cocos and should not be read as a Cocos fork
+continuation.
+
+## Relationship to AGTP
+
+AGTP core is treated as existing draft work. This repository explores security
+checks and test vectors that can be proposed as implementation guidance or draft
+feedback.
+
+The central rule is simple: AGTP may carry identity and policy material, but it
+must not make peer-controlled metadata authoritative.
+
+## Verification
+
+For the current local implementation checks:
+
+```sh
+go test ./pkg/agtp ./pkg/atls/identitypolicy
+go test ./pkg/clients ./pkg/clients/http ./pkg/clients/grpc
 ```
 
-This will generate three binaries:
-```bash
-ls build/
-# cocos-agent  cocos-cli  cocos-manager
-```
+Some client tests open local loopback listeners. In restricted sandboxes, those
+tests may need to run outside the sandbox.
 
-### Deployment Overview:
-- **Manager**: Deploy on the AMD SEV-SNP host to orchestrate workloads.
-- **Agent**: Build into the [EOS](https://github.com/ultravioletrs/eos)-based HAL for secure enclave management.
-- **CLI**: Interact with remote agents to control operations.
+## License
 
-## 📚 Documentation
-
-Comprehensive documentation is available at the [official documentation page](https://docs.cocos.ultraviolet.rs).  
-For CLI usage details, visit the [CLI Documentation](https://docs.cocos.ultraviolet.rs/cli).
-
-Documentation is automatically generated from the [docs repository](https://github.com/ultravioletrs/docs). Contributions to documentation are welcome!
-
-## 🛡️ License
-
-Cocos AI is published under the permissive open-source [Apache-2.0](LICENSE) license. Contributions are encouraged and appreciated!
-
-## 🌐 Links and Resources
-
-- [Cocos AI Website](https://cocos.ai/)
-- [Official Releases](https://github.com/ultravioletrs/cocos/releases)
-- [Confidential Computing Overview](https://confidentialcomputing.io/white-papers-reports/)
-- [Trusted Execution Environments (TEEs)](https://en.wikipedia.org/wiki/Trusted_execution_environment)
-
->This work has been partially supported by the [ELASTIC](https://elasticproject.eu/) and [CONFIDENTIAL6G](https://confidential6g.eu/), which received funding from the Smart Networks and Services Joint Undertaking (SNS JU) under the European Union’s Horizon Europe research and innovation programme under [Grant Agreement No. 101139067](https://cordis.europa.eu/project/id/101139067) and [Grant Agreement No. 101096435](https://cordis.europa.eu/project/id/101096435). Views and opinions expressed are however those of the author(s) only and do not necessarily reflect those of the European Union. Neither the European Union nor the granting authority can be held responsible for them.
+This repository currently keeps the original Apache-2.0 license.
