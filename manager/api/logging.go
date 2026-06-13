@@ -11,7 +11,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/thinksyncs/agtp-atls-profile/manager"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager"
 )
 
 var _ manager.Service = (*loggingMiddleware)(nil)

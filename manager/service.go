@@ -20,10 +20,10 @@ import (
 
 	"github.com/absmach/supermq/pkg/errors"
 	"github.com/google/uuid"
-	"github.com/thinksyncs/agtp-atls-profile/manager/qemu"
-	"github.com/thinksyncs/agtp-atls-profile/manager/vm"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation/corimgen"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/manager"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/qemu"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/vm"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation/corimgen"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/manager"
 	"golang.org/x/crypto/sha3"
 )
 

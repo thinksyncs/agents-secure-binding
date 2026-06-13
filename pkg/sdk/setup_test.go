@@ -10,9 +10,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/thinksyncs/agtp-atls-profile/agent"
-	agentgrpc "github.com/thinksyncs/agtp-atls-profile/agent/api/grpc"
-	"github.com/thinksyncs/agtp-atls-profile/agent/mocks"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent"
+	agentgrpc "github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/api/grpc"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/mocks"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 )

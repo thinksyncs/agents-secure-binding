@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thinksyncs/agtp-atls-profile/agent/algorithm/logging"
-	"github.com/thinksyncs/agtp-atls-profile/agent/events/mocks"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/algorithm/logging"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/events/mocks"
 )
 
 const testWasm = "test.wasm"

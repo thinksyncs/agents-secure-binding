@@ -4,6 +4,8 @@
 package clients
 
 import (
+	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -13,17 +15,25 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/agtp"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls/ea"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls/identitypolicy"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/agtp"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/ea"
+	attestation "github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/eaattestation"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/identitypolicy"
 )
 
 func TestAGTPObservedIdentityAcceptsSessionBoundJWT(t *testing.T) {
@@ -151,6 +161,51 @@ func TestAGTPObservedIdentityAcceptsManagerIssuedGrantE2E(t *testing.T) {
 	if assertion.Binding.Nonce != "nonce-1" {
 		t.Fatalf("assertion binding nonce = %q, want nonce-1", assertion.Binding.Nonce)
 	}
+}
+
+func TestAGTPObservedIdentityRedTeamRealTLSAttestationBinding(t *testing.T) {
+	accepted := realTLSAttestationResultForAGTP(t)
+	fixture := newClientTestAGTPFixture(t, accepted.validation)
+	grantToken := fixture.issueGrant(t, nil)
+	bindingToken := fixture.issueBinding(t, grantToken, nil)
+
+	t.Run("accepts real TLS exporter and attestation binder", func(t *testing.T) {
+		cfg := fixture.config(grantToken, bindingToken)
+		observedIdentity, err := cfg.AGTPObservedIdentity()
+		if err != nil {
+			t.Fatalf("AGTPObservedIdentity() error = %v", err)
+		}
+
+		assertion, err := observedIdentity(&accepted.state, accepted.validation)
+		if err != nil {
+			t.Fatalf("observed identity error = %v", err)
+		}
+		if assertion.Binding.AttestationBinderSHA256 == "" {
+			t.Fatal("assertion missing attestation binder hash")
+		}
+	})
+
+	t.Run("rejects binding borrowed from another TLS attestation session", func(t *testing.T) {
+		borrowed := realTLSAttestationResultForAGTP(t)
+		borrowedBinding, err := atls.IdentityBindingFromValidation(borrowed.validation)
+		if err != nil {
+			t.Fatalf("IdentityBindingFromValidation() borrowed error = %v", err)
+		}
+		borrowedBindingToken := fixture.agent.issueSessionBinding(t, fixture.now, agtp.IdentityGrantHash(grantToken), borrowedBinding, map[string]any{
+			"jti":   "borrowed-binding",
+			"nonce": "borrowed-nonce",
+		})
+		cfg := fixture.config(grantToken, borrowedBindingToken)
+		observedIdentity, err := cfg.AGTPObservedIdentity()
+		if err != nil {
+			t.Fatalf("AGTPObservedIdentity() error = %v", err)
+		}
+
+		_, err = observedIdentity(&accepted.state, accepted.validation)
+		if !errors.Is(err, identitypolicy.ErrMismatch) {
+			t.Fatalf("observed identity error = %v, want %v", err, identitypolicy.ErrMismatch)
+		}
+	})
 }
 
 func TestAGTPObservedIdentityAcceptsHTTPJWKSAndRejectsRevocation(t *testing.T) {
@@ -656,6 +711,345 @@ func TestAGTPObservedIdentityRedTeamRejectsReplay(t *testing.T) {
 	}
 }
 
+func TestAGTPObservedIdentityRedTeamRejectsReplayRace(t *testing.T) {
+	fixture := newClientTestAGTPFixture(t, nil)
+	grantToken := fixture.issueGrant(t, nil)
+	bindingToken := fixture.issueBinding(t, grantToken, nil)
+	cfg := fixture.config(grantToken, bindingToken)
+	cfg.IdentityReplay = identitypolicy.NewMemoryReplayCacheWithClock(func() time.Time { return fixture.now })
+
+	observedIdentity, err := cfg.AGTPObservedIdentity()
+	if err != nil {
+		t.Fatalf("AGTPObservedIdentity() error = %v", err)
+	}
+
+	const attempts = 16
+	errCh := make(chan error, attempts)
+	for range attempts {
+		go func() {
+			_, err := observedIdentity(&tls.ConnectionState{}, fixture.validation)
+			errCh <- err
+		}()
+	}
+
+	accepted := 0
+	replayed := 0
+	for range attempts {
+		err := <-errCh
+		switch {
+		case err == nil:
+			accepted++
+		case errors.Is(err, identitypolicy.ErrReplayDetected):
+			replayed++
+		default:
+			t.Fatalf("concurrent observed identity error = %v, want nil or %v", err, identitypolicy.ErrReplayDetected)
+		}
+	}
+	if accepted != 1 || replayed != attempts-1 {
+		t.Fatalf("concurrent replay result accepted=%d replayed=%d, want 1/%d", accepted, replayed, attempts-1)
+	}
+}
+
+func TestAGTPObservedIdentityRedTeamRejectsReplayRaceMultiProcess(t *testing.T) {
+	replayServer := newClientTestHTTPSetNXReplayServer(t)
+	tokenTime := time.Now().UTC().Truncate(time.Second)
+	const attempts = 8
+
+	type worker struct {
+		cmd    *exec.Cmd
+		output *bytes.Buffer
+	}
+	workers := make([]worker, 0, attempts)
+	for range attempts {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestAGTPObservedIdentityRedTeamReplayRaceWorker$")
+		cmd.Env = append(os.Environ(),
+			"CLIENT_TEST_LRTT03_WORKER=1",
+			"CLIENT_TEST_LRTT03_REPLAY_URL="+replayServer.server.URL,
+			fmt.Sprintf("CLIENT_TEST_LRTT03_NOW=%d", tokenTime.Unix()),
+		)
+		var output bytes.Buffer
+		cmd.Stdout = &output
+		cmd.Stderr = &output
+		if err := cmd.Start(); err != nil {
+			t.Fatalf("start replay worker: %v", err)
+		}
+		workers = append(workers, worker{cmd: cmd, output: &output})
+	}
+	t.Cleanup(func() {
+		for _, worker := range workers {
+			if worker.cmd.Process != nil {
+				_ = worker.cmd.Process.Kill()
+			}
+		}
+	})
+
+	for range attempts {
+		select {
+		case <-replayServer.arrivals:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for replay workers to reach start barrier")
+		}
+	}
+	close(replayServer.start)
+
+	accepted := 0
+	replayed := 0
+	for _, worker := range workers {
+		err := worker.cmd.Wait()
+		output := worker.output.String()
+		if err != nil {
+			t.Fatalf("replay worker failed: %v\n%s", err, output)
+		}
+		switch {
+		case strings.Contains(output, "LRTT03_RESULT accepted"):
+			accepted++
+		case strings.Contains(output, "LRTT03_RESULT replay"):
+			replayed++
+		default:
+			t.Fatalf("replay worker output missing result marker:\n%s", output)
+		}
+	}
+
+	if accepted != 1 || replayed != attempts-1 {
+		t.Fatalf("multi-process replay result accepted=%d replayed=%d, want 1/%d", accepted, replayed, attempts-1)
+	}
+}
+
+func TestAGTPObservedIdentityRedTeamReplayRaceWorker(t *testing.T) {
+	if os.Getenv("CLIENT_TEST_LRTT03_WORKER") != "1" {
+		t.Skip("helper process for multi-process replay race")
+	}
+
+	replayURL := os.Getenv("CLIENT_TEST_LRTT03_REPLAY_URL")
+	if replayURL == "" {
+		t.Fatal("missing CLIENT_TEST_LRTT03_REPLAY_URL")
+	}
+	resp, err := http.Get(replayURL + "/start")
+	if err != nil {
+		t.Fatalf("wait for start barrier: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("start barrier status = %d, want %d", resp.StatusCode, http.StatusNoContent)
+	}
+
+	cfg, validation := clientTestLRTT03Config(t, replayURL)
+	observedIdentity, err := cfg.AGTPObservedIdentity()
+	if err != nil {
+		t.Fatalf("AGTPObservedIdentity() error = %v", err)
+	}
+	_, err = observedIdentity(&tls.ConnectionState{}, validation)
+	switch {
+	case err == nil:
+		fmt.Println("LRTT03_RESULT accepted")
+	case errors.Is(err, identitypolicy.ErrReplayDetected):
+		fmt.Println("LRTT03_RESULT replay")
+	default:
+		t.Fatalf("observed identity error = %v, want nil or %v", err, identitypolicy.ErrReplayDetected)
+	}
+}
+
+func TestAGTPObservedIdentityRedTeamRejectsKeyAndRevocationFailures(t *testing.T) {
+	fixture := newClientTestAGTPFixture(t, nil)
+	grantToken := fixture.issueGrant(t, nil)
+	bindingToken := fixture.issueBinding(t, grantToken, nil)
+	rotatedManager := clientTestJWTIssuer{keyID: "manager-key-rotated", secret: []byte("manager-rotated-secret")}
+	rotatedGrantToken := rotatedManager.issueIdentityGrant(t, fixture.now, map[string]any{"service": "payments"})
+	rotatedBindingToken := fixture.agent.issueSessionBinding(t, fixture.now, agtp.IdentityGrantHash(rotatedGrantToken), fixture.binding, nil)
+	registry := newClientTestIdentityRegistry(t, map[string][]byte{
+		"manager-key": []byte("manager-secret"),
+		"agent-key-1": []byte("agent-secret"),
+	}, nil)
+	overlapRegistry := newClientTestIdentityRegistry(t, map[string][]byte{
+		"manager-key":         []byte("manager-secret"),
+		"manager-key-rotated": []byte("manager-rotated-secret"),
+		"agent-key-1":         []byte("agent-secret"),
+	}, nil)
+	failingRegistry := newClientTestFailingIdentityRegistry(t, http.StatusInternalServerError)
+	timeoutRegistry := newClientTestSlowIdentityRegistry(t, map[string][]byte{
+		"manager-key": []byte("manager-secret"),
+	}, 50*time.Millisecond, time.Nanosecond)
+	revocationOutageRegistry := newClientTestRevocationOutageRegistry(t, map[string][]byte{
+		"manager-key": []byte("manager-secret"),
+	}, http.StatusInternalServerError)
+
+	tests := []struct {
+		name         string
+		grantToken   string
+		bindingToken string
+		mutate       func(*AttestedClientConfig)
+		wantErr      error
+		wantAnyErr   bool
+		wantOK       bool
+	}{
+		{
+			name:         "stale JWKS rejects rotated manager key",
+			grantToken:   rotatedGrantToken,
+			bindingToken: rotatedBindingToken,
+			mutate: func(cfg *AttestedClientConfig) {
+				cfg.IdentityGrantJWTOptions.KeyFunc = registry.keyFunc(t)
+				cfg.IdentityBindingJWTOptions.KeyFunc = registry.keyFunc(t)
+			},
+			wantErr: agtp.ErrUnknownKeyID,
+		},
+		{
+			name:         "key rotation overlap accepts old and rotated manager keys",
+			grantToken:   rotatedGrantToken,
+			bindingToken: rotatedBindingToken,
+			mutate: func(cfg *AttestedClientConfig) {
+				cfg.IdentityGrantJWTOptions.KeyFunc = overlapRegistry.keyFunc(t)
+				cfg.IdentityBindingJWTOptions.KeyFunc = overlapRegistry.keyFunc(t)
+			},
+			wantOK: true,
+		},
+		{
+			name: "HTTP JWKS 500 rejects fail closed",
+			mutate: func(cfg *AttestedClientConfig) {
+				cfg.IdentityGrantJWTOptions.KeyFunc = failingRegistry.keyFunc(t)
+			},
+			wantErr: agtp.ErrUnknownKeyID,
+		},
+		{
+			name: "HTTP JWKS timeout rejects fail closed",
+			mutate: func(cfg *AttestedClientConfig) {
+				cfg.IdentityGrantJWTOptions.KeyFunc = timeoutRegistry.keyFunc(t)
+			},
+			wantAnyErr: true,
+		},
+		{
+			name: "revocation source outage rejects fail closed",
+			mutate: func(cfg *AttestedClientConfig) {
+				cfg.IdentityGrantJWTOptions.KeyFunc = revocationOutageRegistry.keyFuncWithRevocationCheck(t)
+			},
+			wantErr: errClientTestRevocationSourceUnavailable,
+		},
+		{
+			name: "disabled manager key rejects grant",
+			mutate: func(cfg *AttestedClientConfig) {
+				cfg.IdentityGrantJWTOptions.DisabledKeyIDs = []string{"manager-key"}
+			},
+			wantErr: agtp.ErrDisabledKeyID,
+		},
+		{
+			name: "revoked manager grant rejects jti",
+			mutate: func(cfg *AttestedClientConfig) {
+				cfg.IdentityGrantJWTOptions.RevokedJWTIDs = []string{"grant-1"}
+			},
+			wantErr: agtp.ErrRevokedJWTID,
+		},
+		{
+			name: "disabled agent binding key rejects statement",
+			mutate: func(cfg *AttestedClientConfig) {
+				cfg.IdentityBindingJWTOptions.DisabledKeyIDs = []string{"agent-key-1"}
+			},
+			wantErr: agtp.ErrDisabledKeyID,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testGrantToken := grantToken
+			if tt.grantToken != "" {
+				testGrantToken = tt.grantToken
+			}
+			testBindingToken := bindingToken
+			if tt.bindingToken != "" {
+				testBindingToken = tt.bindingToken
+			}
+			cfg := fixture.config(testGrantToken, testBindingToken)
+			if tt.mutate != nil {
+				tt.mutate(&cfg)
+			}
+			observedIdentity, err := cfg.AGTPObservedIdentity()
+			if err != nil {
+				t.Fatalf("AGTPObservedIdentity() error = %v", err)
+			}
+			_, err = observedIdentity(&tls.ConnectionState{}, fixture.validation)
+			if tt.wantOK {
+				if err != nil {
+					t.Fatalf("observed identity error = %v, want nil", err)
+				}
+				return
+			}
+			if tt.wantAnyErr {
+				if err == nil {
+					t.Fatal("observed identity error = nil, want failure")
+				}
+				return
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("observed identity error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestAGTPObservedIdentityRedTeamRejectsAttestationBinderMismatch(t *testing.T) {
+	validation := validationResultForAGTPWithAttestationBinder(t, []byte("accepted-attestation-binder"))
+	fixture := newClientTestAGTPFixture(t, validation)
+	grantToken := fixture.issueGrant(t, nil)
+	bindingToken := fixture.issueBinding(t, grantToken, map[string]any{
+		"attestation_binder_sha256": "different-attestation-binder",
+	})
+	cfg := fixture.config(grantToken, bindingToken)
+
+	observedIdentity, err := cfg.AGTPObservedIdentity()
+	if err != nil {
+		t.Fatalf("AGTPObservedIdentity() error = %v", err)
+	}
+	_, err = observedIdentity(&tls.ConnectionState{}, fixture.validation)
+	if !errors.Is(err, identitypolicy.ErrMismatch) {
+		t.Fatalf("observed identity error = %v, want %v", err, identitypolicy.ErrMismatch)
+	}
+}
+
+func TestAGTPObservedIdentityRedTeamRejectsGrantSubstitution(t *testing.T) {
+	fixture := newClientTestAGTPFixture(t, nil)
+	grantToken := fixture.issueGrant(t, nil)
+	substitutedGrantToken := fixture.issueGrant(t, map[string]any{"jti": "grant-substituted"})
+	bindingToken := fixture.issueBinding(t, substitutedGrantToken, nil)
+	cfg := fixture.config(grantToken, bindingToken)
+
+	observedIdentity, err := cfg.AGTPObservedIdentity()
+	if err != nil {
+		t.Fatalf("AGTPObservedIdentity() error = %v", err)
+	}
+	_, err = observedIdentity(&tls.ConnectionState{}, fixture.validation)
+	if !errors.Is(err, identitypolicy.ErrMismatch) {
+		t.Fatalf("observed identity error = %v, want %v", err, identitypolicy.ErrMismatch)
+	}
+}
+
+func TestAGTPObservedIdentityRedTeamRejectsVerifiedGrantCacheMisuse(t *testing.T) {
+	fixture := newClientTestAGTPFixture(t, nil)
+	grantToken := fixture.issueGrant(t, nil)
+	bindingToken := fixture.issueBinding(t, grantToken, nil)
+	cfg := fixture.config(grantToken, bindingToken)
+
+	observedIdentity, err := cfg.AGTPObservedIdentity()
+	if err != nil {
+		t.Fatalf("AGTPObservedIdentity() error = %v", err)
+	}
+	if _, err := observedIdentity(&tls.ConnectionState{}, fixture.validation); err != nil {
+		t.Fatalf("first observed identity error = %v", err)
+	}
+
+	freshBindingToken := fixture.issueBinding(t, grantToken, map[string]any{
+		"jti":   "binding-2",
+		"nonce": "nonce-2",
+	})
+	cfg = fixture.config(grantToken, freshBindingToken)
+	cfg.IdentityGrantJWTOptions.RevokedJWTIDs = []string{"grant-1"}
+	observedIdentity, err = cfg.AGTPObservedIdentity()
+	if err != nil {
+		t.Fatalf("AGTPObservedIdentity() with revoked grant error = %v", err)
+	}
+	_, err = observedIdentity(&tls.ConnectionState{}, fixture.validation)
+	if !errors.Is(err, agtp.ErrRevokedJWTID) {
+		t.Fatalf("revoked observed identity error = %v, want %v", err, agtp.ErrRevokedJWTID)
+	}
+}
+
 func TestAGTPObservedIdentityRejectsPartialJWTConfig(t *testing.T) {
 	cfg := AttestedClientConfig{
 		IdentityGrantJWT: "grant",
@@ -755,6 +1149,298 @@ func validationResultForAGTP(t *testing.T) *ea.ValidationResult {
 	}
 }
 
+func deterministicValidationResultForAGTP(t *testing.T) *ea.ValidationResult {
+	t.Helper()
+
+	curve := elliptic.P256()
+	d := big.NewInt(1)
+	x, y := curve.ScalarBaseMult(d.Bytes())
+	priv := &ecdsa.PrivateKey{
+		PublicKey: ecdsa.PublicKey{Curve: curve, X: x, Y: y},
+		D:         d,
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "agtp-lrtt03-client-test"},
+		NotBefore:    time.Unix(1_700_000_000, 0).Add(-time.Hour),
+		NotAfter:     time.Unix(1_700_000_000, 0).Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &priv.PublicKey, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &ea.ValidationResult{
+		Context: []byte("agtp-lrtt03-request-context"),
+		Chain:   []*x509.Certificate{leaf},
+	}
+}
+
+func validationResultForAGTPWithAttestationBinder(t *testing.T, binder []byte) *ea.ValidationResult {
+	t.Helper()
+
+	validation := validationResultForAGTP(t)
+	validation.Attestation = &attestation.VerifiedPayload{
+		Payload: &attestation.Payload{
+			Binder: attestation.AttestationBinder{
+				Binding: append([]byte(nil), binder...),
+			},
+		},
+		BindingVerified: true,
+	}
+	return validation
+}
+
+type clientTestTLSAttestationResult struct {
+	state      tls.ConnectionState
+	validation *ea.ValidationResult
+}
+
+func realTLSAttestationResultForAGTP(t *testing.T) clientTestTLSAttestationResult {
+	t.Helper()
+
+	cert, leaf := clientTestSelfSignedTLSCertificate(t)
+	srv, cli := clientTestTLSPair(t, cert)
+	defer srv.Close()
+	defer cli.Close()
+
+	ctx, err := ea.NewRandomContext(16)
+	if err != nil {
+		t.Fatalf("NewRandomContext() error = %v", err)
+	}
+	req := &ea.AuthenticatorRequest{
+		Type:    ea.HandshakeTypeClientCertificateRequest,
+		Context: ctx,
+		Extensions: []ea.Extension{
+			{Type: ea.SignatureAlgorithmsExtensionType, Data: []byte{0x00, 0x02, 0x04, 0x03}},
+			ea.CMWAttestationOfferExtension(),
+		},
+	}
+
+	srvState := srv.ConnectionState()
+	_, aikPubHash, binding, err := attestation.ComputeBinding(&srvState, attestation.ExporterLabelAttestation, ctx, leaf)
+	if err != nil {
+		t.Fatalf("ComputeBinding() error = %v", err)
+	}
+	payloadBytes, err := attestation.MarshalPayload(attestation.Payload{
+		Version:   1,
+		Evidence:  []byte("dummy-attestation-report"),
+		MediaType: "application/eat+cwt",
+		Binder: attestation.AttestationBinder{
+			ExporterLabel: attestation.ExporterLabelAttestation,
+			AIKPubHash:    aikPubHash,
+			Binding:       binding,
+		},
+	})
+	if err != nil {
+		t.Fatalf("MarshalPayload() error = %v", err)
+	}
+	ext, err := ea.CMWAttestationDataExtension(payloadBytes)
+	if err != nil {
+		t.Fatalf("CMWAttestationDataExtension() error = %v", err)
+	}
+	auth, err := ea.CreateAuthenticator(&srvState, ea.RoleServer, req, cert, []ea.Extension{ext})
+	if err != nil {
+		t.Fatalf("CreateAuthenticator() error = %v", err)
+	}
+
+	cliState := cli.ConnectionState()
+	roots := x509.NewCertPool()
+	roots.AddCert(leaf)
+	validation, err := ea.ValidateAuthenticatorWithAttestation(&cliState, ea.RoleServer, req, auth, &x509.VerifyOptions{Roots: roots}, attestation.VerificationPolicy{
+		EvidenceVerifier: clientTestAcceptEvidenceVerifier{},
+	})
+	if err != nil {
+		t.Fatalf("ValidateAuthenticatorWithAttestation() error = %v", err)
+	}
+	if validation.Attestation == nil || !validation.Attestation.BindingVerified || !validation.Attestation.EvidenceVerified {
+		t.Fatal("expected real TLS attestation validation result")
+	}
+
+	return clientTestTLSAttestationResult{
+		state:      cliState,
+		validation: validation,
+	}
+}
+
+func clientTestSelfSignedTLSCertificate(t *testing.T) (tls.Certificate, *x509.Certificate) {
+	t.Helper()
+
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "agtp-real-tls-client-test"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     []string{"localhost"},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &priv.PublicKey, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: priv}, leaf
+}
+
+func clientTestTLSPair(t *testing.T, cert tls.Certificate) (*tls.Conn, *tls.Conn) {
+	t.Helper()
+
+	srvConf := &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS13, MaxVersion: tls.VersionTLS13}
+	cliConf := &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS13, MaxVersion: tls.VersionTLS13}
+	a, b := net.Pipe()
+	srv := tls.Server(a, srvConf)
+	cli := tls.Client(b, cliConf)
+	errCh := make(chan error, 2)
+	go func() { errCh <- srv.Handshake() }()
+	go func() { errCh <- cli.Handshake() }()
+	for range 2 {
+		if err := <-errCh; err != nil {
+			t.Fatalf("handshake: %v", err)
+		}
+	}
+	return srv, cli
+}
+
+type clientTestAcceptEvidenceVerifier struct{}
+
+func (clientTestAcceptEvidenceVerifier) VerifyEvidence([]byte, attestation.EvidenceBinding) error {
+	return nil
+}
+
+type clientTestAGTPFixture struct {
+	now        time.Time
+	validation *ea.ValidationResult
+	binding    identitypolicy.Binding
+	manager    clientTestJWTIssuer
+	agent      clientTestJWTIssuer
+}
+
+func newClientTestAGTPFixture(t *testing.T, validation *ea.ValidationResult) clientTestAGTPFixture {
+	t.Helper()
+
+	now := time.Now()
+	if validation == nil {
+		validation = validationResultForAGTP(t)
+	}
+	binding, err := atls.IdentityBindingFromValidation(validation)
+	if err != nil {
+		t.Fatalf("IdentityBindingFromValidation() error = %v", err)
+	}
+	return clientTestAGTPFixture{
+		now:        now,
+		validation: validation,
+		binding:    binding,
+		manager:    clientTestJWTIssuer{keyID: "manager-key", secret: []byte("manager-secret")},
+		agent:      clientTestJWTIssuer{keyID: "agent-key-1", secret: []byte("agent-secret")},
+	}
+}
+
+func clientTestLRTT03Config(t *testing.T, replayURL string) (AttestedClientConfig, *ea.ValidationResult) {
+	t.Helper()
+
+	now := time.Now().UTC().Truncate(time.Second)
+	if rawNow := os.Getenv("CLIENT_TEST_LRTT03_NOW"); rawNow != "" {
+		unixNow, err := strconv.ParseInt(rawNow, 10, 64)
+		if err != nil {
+			t.Fatalf("parse CLIENT_TEST_LRTT03_NOW: %v", err)
+		}
+		now = time.Unix(unixNow, 0)
+	}
+	validation := deterministicValidationResultForAGTP(t)
+	binding, err := atls.IdentityBindingFromValidation(validation)
+	if err != nil {
+		t.Fatalf("IdentityBindingFromValidation() error = %v", err)
+	}
+
+	manager := clientTestJWTIssuer{keyID: "manager-key", secret: []byte("manager-secret")}
+	agent := clientTestJWTIssuer{keyID: "agent-key-1", secret: []byte("agent-secret")}
+	grantToken := manager.issueIdentityGrant(t, now, map[string]any{"service": "payments"})
+	bindingToken := agent.issueSessionBinding(t, now, agtp.IdentityGrantHash(grantToken), binding, nil)
+
+	cfg := AttestedClientConfig{
+		IdentityPolicy: identitypolicy.Policy{
+			Require:  identitypolicy.Requirements{L3: true},
+			Expected: identitypolicy.Values{Service: "payments"},
+		},
+		IdentityGrantJWT:   grantToken,
+		IdentityBindingJWT: bindingToken,
+		IdentityGrantJWTOptions: agtp.JWTVerifyOptions{
+			ExpectedIssuer:   "manager",
+			ExpectedAudience: "client-a",
+			ValidMethods:     []string{"HS256"},
+			KeyFunc:          clientTestKeyFunc(map[string][]byte{"manager-key": []byte("manager-secret")}),
+			Now:              now,
+		},
+		IdentityBindingJWTOptions: agtp.JWTVerifyOptions{
+			ExpectedIssuer:   "agent-a",
+			ExpectedAudience: "client-a",
+			ValidMethods:     []string{"HS256"},
+			KeyFunc:          clientTestKeyFunc(map[string][]byte{"agent-key-1": []byte("agent-secret")}),
+			Now:              now,
+		},
+		IdentityReplay: identitypolicy.NewSetNXReplayCacheWithClock(
+			context.Background(),
+			clientTestHTTPSetNXStore{baseURL: replayURL, client: http.DefaultClient},
+			func() time.Time { return now },
+		),
+	}
+	return cfg, validation
+}
+
+func (f clientTestAGTPFixture) issueGrant(t *testing.T, overrides map[string]any) string {
+	t.Helper()
+
+	claims := map[string]any{"service": "payments"}
+	for key, value := range overrides {
+		claims[key] = value
+	}
+	return f.manager.issueIdentityGrant(t, f.now, claims)
+}
+
+func (f clientTestAGTPFixture) issueBinding(t *testing.T, grantToken string, overrides map[string]any) string {
+	t.Helper()
+
+	return f.agent.issueSessionBinding(t, f.now, agtp.IdentityGrantHash(grantToken), f.binding, overrides)
+}
+
+func (f clientTestAGTPFixture) config(grantToken, bindingToken string) AttestedClientConfig {
+	return AttestedClientConfig{
+		IdentityPolicy: identitypolicy.Policy{
+			Require:  identitypolicy.Requirements{L3: true},
+			Expected: identitypolicy.Values{Service: "payments"},
+		},
+		IdentityGrantJWT:   grantToken,
+		IdentityBindingJWT: bindingToken,
+		IdentityGrantJWTOptions: agtp.JWTVerifyOptions{
+			ExpectedIssuer:   "manager",
+			ExpectedAudience: "client-a",
+			ValidMethods:     []string{"HS256"},
+			KeyFunc:          clientTestKeyFunc(map[string][]byte{"manager-key": []byte("manager-secret")}),
+			Now:              f.now,
+		},
+		IdentityBindingJWTOptions: agtp.JWTVerifyOptions{
+			ExpectedIssuer:   "agent-a",
+			ExpectedAudience: "client-a",
+			ValidMethods:     []string{"HS256"},
+			KeyFunc:          clientTestKeyFunc(map[string][]byte{"agent-key-1": []byte("agent-secret")}),
+			Now:              f.now,
+		},
+		IdentityReplay: identitypolicy.NewMemoryReplayCacheWithClock(func() time.Time { return f.now }),
+	}
+}
+
 func signClientTestJWT(t *testing.T, keyID string, secret []byte, claims jwt.MapClaims) string {
 	t.Helper()
 
@@ -832,30 +1518,123 @@ type clientTestIdentityRegistry struct {
 	client *http.Client
 }
 
+type clientTestHTTPSetNXReplayServer struct {
+	server   *httptest.Server
+	start    chan struct{}
+	arrivals chan struct{}
+	mu       sync.Mutex
+	entries  map[string]time.Time
+}
+
+func newClientTestHTTPSetNXReplayServer(t *testing.T) *clientTestHTTPSetNXReplayServer {
+	t.Helper()
+
+	replay := &clientTestHTTPSetNXReplayServer{
+		start:    make(chan struct{}),
+		arrivals: make(chan struct{}, 64),
+		entries:  make(map[string]time.Time),
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/start", replay.handleStart)
+	mux.HandleFunc("/setnx", replay.handleSetNX)
+	replay.server = httptest.NewServer(mux)
+	t.Cleanup(replay.server.Close)
+	return replay
+}
+
+func (s *clientTestHTTPSetNXReplayServer) handleStart(w http.ResponseWriter, _ *http.Request) {
+	s.arrivals <- struct{}{}
+	<-s.start
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *clientTestHTTPSetNXReplayServer) handleSetNX(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Key   string `json:"key"`
+		TTLNS int64  `json:"ttl_ns"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if req.Key == "" || req.TTLNS <= 0 {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	now := time.Now()
+	s.mu.Lock()
+	ok := true
+	if expiresAt, exists := s.entries[req.Key]; exists && now.Before(expiresAt) {
+		ok = false
+	} else {
+		s.entries[req.Key] = now.Add(time.Duration(req.TTLNS))
+	}
+	s.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(struct {
+		OK bool `json:"ok"`
+	}{OK: ok}); err != nil {
+		http.Error(w, "encode response", http.StatusInternalServerError)
+	}
+}
+
+type clientTestHTTPSetNXStore struct {
+	baseURL string
+	client  *http.Client
+}
+
+func (s clientTestHTTPSetNXStore) SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	body, err := json.Marshal(struct {
+		Key   string `json:"key"`
+		TTLNS int64  `json:"ttl_ns"`
+	}{
+		Key:   key,
+		TTLNS: ttl.Nanoseconds(),
+	})
+	if err != nil {
+		return false, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.baseURL+"/setnx", bytes.NewReader(body))
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := s.client
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("setnx status %d", resp.StatusCode)
+	}
+	var decoded struct {
+		OK bool `json:"ok"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		return false, err
+	}
+	return decoded.OK, nil
+}
+
+var errClientTestRevocationSourceUnavailable = errors.New("client test revocation source unavailable")
+
 func newClientTestIdentityRegistry(t *testing.T, keys map[string][]byte, revokedJWTIDs []string) *clientTestIdentityRegistry {
 	t.Helper()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
-		type jwk struct {
-			KeyType string `json:"kty"`
-			KeyID   string `json:"kid"`
-			Key     string `json:"k"`
-		}
-		resp := struct {
-			Keys []jwk `json:"keys"`
-		}{}
-		for keyID, key := range keys {
-			resp.Keys = append(resp.Keys, jwk{
-				KeyType: "oct",
-				KeyID:   keyID,
-				Key:     base64.RawURLEncoding.EncodeToString(key),
-			})
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			t.Errorf("encode jwks response: %v", err)
-		}
+		writeClientTestJWKSet(t, w, keys)
 	})
 	mux.HandleFunc("/revocations", func(w http.ResponseWriter, _ *http.Request) {
 		resp := struct {
@@ -874,6 +1653,66 @@ func newClientTestIdentityRegistry(t *testing.T, keys map[string][]byte, revoked
 	return &clientTestIdentityRegistry{
 		server: server,
 		client: server.Client(),
+	}
+}
+
+func newClientTestSlowIdentityRegistry(t *testing.T, keys map[string][]byte, delay, timeout time.Duration) *clientTestIdentityRegistry {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(delay)
+		writeClientTestJWKSet(t, w, keys)
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	return &clientTestIdentityRegistry{
+		server: server,
+		client: &http.Client{Timeout: timeout},
+	}
+}
+
+func newClientTestRevocationOutageRegistry(t *testing.T, keys map[string][]byte, status int) *clientTestIdentityRegistry {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		writeClientTestJWKSet(t, w, keys)
+	})
+	mux.HandleFunc("/revocations", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, http.StatusText(status), status)
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	return &clientTestIdentityRegistry{
+		server: server,
+		client: server.Client(),
+	}
+}
+
+func writeClientTestJWKSet(t *testing.T, w http.ResponseWriter, keys map[string][]byte) {
+	t.Helper()
+
+	type jwk struct {
+		KeyType string `json:"kty"`
+		KeyID   string `json:"kid"`
+		Key     string `json:"k"`
+	}
+	resp := struct {
+		Keys []jwk `json:"keys"`
+	}{}
+	for keyID, key := range keys {
+		resp.Keys = append(resp.Keys, jwk{
+			KeyType: "oct",
+			KeyID:   keyID,
+			Key:     base64.RawURLEncoding.EncodeToString(key),
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		t.Errorf("encode jwks response: %v", err)
 	}
 }
 
@@ -913,22 +1752,58 @@ func (r *clientTestIdentityRegistry) keyFunc(t *testing.T) agtp.KeyFunc {
 	}
 }
 
+func (r *clientTestIdentityRegistry) keyFuncWithRevocationCheck(t *testing.T) agtp.KeyFunc {
+	t.Helper()
+
+	keyFunc := r.keyFunc(t)
+	return func(keyID string) (interface{}, error) {
+		if _, err := r.revokedJWTIDsOrError(); err != nil {
+			return nil, errClientTestRevocationSourceUnavailable
+		}
+		return keyFunc(keyID)
+	}
+}
+
 func (r *clientTestIdentityRegistry) revokedJWTIDs(t *testing.T) []string {
 	t.Helper()
 
+	revoked, err := r.revokedJWTIDsOrError()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return revoked
+}
+
+func (r *clientTestIdentityRegistry) revokedJWTIDsOrError() ([]string, error) {
 	resp, err := r.client.Get(r.server.URL + "/revocations")
 	if err != nil {
-		t.Fatalf("fetch revocations: %v", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("fetch revocations status = %d, want %d", resp.StatusCode, http.StatusOK)
+		return nil, errClientTestRevocationSourceUnavailable
 	}
 	var body struct {
 		RevokedJWTIDs []string `json:"revoked_jtis"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		t.Fatalf("decode revocations: %v", err)
+		return nil, err
 	}
-	return body.RevokedJWTIDs
+	return body.RevokedJWTIDs, nil
+}
+
+func newClientTestFailingIdentityRegistry(t *testing.T, status int) *clientTestIdentityRegistry {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, http.StatusText(status), status)
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	return &clientTestIdentityRegistry{
+		server: server,
+		client: server.Client(),
+	}
 }

@@ -20,7 +20,7 @@ This package executes the `igvmmeasure` binary to compute cryptographic measurem
 ```go
 import (
     "bytes"
-    "github.com/thinksyncs/agtp-atls-profile/pkg/attestation/igvmmeasure"
+    "github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation/igvmmeasure"
 )
 
 var stdout, stderr bytes.Buffer

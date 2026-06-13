@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	pb "github.com/thinksyncs/agtp-atls-profile/agent/runner"
+	pb "github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/runner"
 )
 
 // MockEventService is a mock implementation of events.Service.

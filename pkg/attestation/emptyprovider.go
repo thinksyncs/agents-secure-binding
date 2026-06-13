@@ -6,7 +6,7 @@ package attestation
 import (
 	"fmt"
 
-	cocosai "github.com/thinksyncs/agtp-atls-profile"
+	cocosai "github.com/thinksyncs/hardware-aware-tls-identity-binding"
 )
 
 var _ Provider = (*EmptyProvider)(nil)

@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	attestation_v1 "github.com/thinksyncs/agtp-atls-profile/internal/proto/attestation/v1"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation"
+	attestation_v1 "github.com/thinksyncs/hardware-aware-tls-identity-binding/internal/proto/attestation/v1"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation"
 	"google.golang.org/grpc"
 )
 

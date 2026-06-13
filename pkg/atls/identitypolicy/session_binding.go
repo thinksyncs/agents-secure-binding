@@ -54,7 +54,7 @@ type VerifiedGrant struct {
 }
 
 // VerifiedSessionBindingStatement is an already-verified holder-of-key proof
-// that binds a grant to the accepted aTLS session.
+// that binds a grant to the accepted TLS session.
 //
 // The signature check, statement type check, and wire-token parsing are
 // deployment-specific. This helper only enforces the source-of-authority
@@ -91,7 +91,7 @@ func NewAssertionFromSessionBindingWithOptions(grant VerifiedGrant, statement Ve
 
 // ValidateSessionBindingStatement checks that the statement is authorized by
 // the grant and contains the minimum session-binding fields needed before
-// ValidateAssertion compares it with the accepted aTLS session.
+// ValidateAssertion compares it with the accepted TLS session.
 func ValidateSessionBindingStatement(grant VerifiedGrant, statement VerifiedSessionBindingStatement, now time.Time) error {
 	return ValidateSessionBindingStatementWithOptions(grant, statement, SessionBindingOptions{Now: now})
 }
@@ -165,12 +165,15 @@ func validateGrantValues(values Values) error {
 		{FieldTaskID, func(v Values) string { return v.TaskID }},
 		{FieldThreadID, func(v Values) string { return v.ThreadID }},
 		{FieldDelegationID, func(v Values) string { return v.DelegationID }},
+		{FieldIntentRef, func(v Values) string { return v.IntentRef }},
+		{FieldCapabilityRef, func(v Values) string { return v.CapabilityRef }},
+		{FieldOntologyID, func(v Values) string { return v.OntologyID }},
 	} {
 		value := f.get(values)
 		if isEmpty(value) {
 			continue
 		}
-		if err := validateValue(value); err != nil {
+		if err := validateFieldValue(f.name, value); err != nil {
 			errs = append(errs, validationError(LayerIdentityGrant, f.name, err))
 		}
 	}

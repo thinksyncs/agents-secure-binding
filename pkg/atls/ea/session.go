@@ -8,7 +8,7 @@ import (
 	"crypto/x509"
 	"sync"
 
-	eaattestation "github.com/thinksyncs/agtp-atls-profile/pkg/atls/eaattestation"
+	eaattestation "github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/eaattestation"
 )
 
 type Session struct {

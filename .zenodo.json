@@ -1,0 +1,30 @@
+{
+  "title": "Hardware-Aware TLS Identity Binding Profile: Draft v0.1.0",
+  "version": "0.1.0",
+  "upload_type": "publication",
+  "publication_type": "technicalnote",
+  "description": "A draft security profile for agent-to-agent and other application protocols using TLS 1.3, post-handshake platform attestation, session binding, Manager-signed Identity Grants, Agent Session Binding Statements, and deterministic expected-versus-observed policy checks. AGTP is treated as one reference target, not as the owner of the profile.",
+  "creators": [
+    {
+      "name": "thinksyncs"
+    }
+  ],
+  "license": "Apache-2.0",
+  "keywords": [
+    "AGTP",
+    "TLS 1.3",
+    "remote attestation",
+    "session binding",
+    "identity binding",
+    "authorization",
+    "relay resistance",
+    "diversion resistance"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/thinksyncs/hardware-aware-tls-identity-binding",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

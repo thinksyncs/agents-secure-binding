@@ -10,7 +10,7 @@ import (
 	"github.com/absmach/supermq/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/thinksyncs/agtp-atls-profile/agent/cvms"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/cvms"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 )

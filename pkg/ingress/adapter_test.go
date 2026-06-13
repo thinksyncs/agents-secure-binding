@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/thinksyncs/agtp-atls-profile/agent"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent"
 )
 
 // TestAgentConfigToProxyConfig tests conversion from AgentConfig to ProxyConfig.

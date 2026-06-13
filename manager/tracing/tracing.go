@@ -5,7 +5,7 @@ package tracing
 import (
 	"context"
 
-	"github.com/thinksyncs/agtp-atls-profile/manager"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager"
 	"go.opentelemetry.io/otel/trace"
 )
 

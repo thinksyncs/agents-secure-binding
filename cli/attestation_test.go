@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation/vtpm"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/sdk/mocks"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation/vtpm"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/sdk/mocks"
 )
 
 func TestNewAttestationCmd(t *testing.T) {

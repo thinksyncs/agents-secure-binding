@@ -12,9 +12,9 @@ import (
 
 	"github.com/go-kit/kit/endpoint"
 	"github.com/go-kit/kit/transport/grpc"
-	"github.com/thinksyncs/agtp-atls-profile/agent"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation/vtpm"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation/vtpm"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"

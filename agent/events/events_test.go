@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/thinksyncs/agtp-atls-profile/agent/cvms"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/cvms"
 )
 
 func TestSendEventSuccess(t *testing.T) {

@@ -7,24 +7,37 @@ written. They keep the feedback concrete.
 
 The grant is signed by the trusted Manager. The Session Binding Statement is
 signed by the grant confirmation key. The binding statement matches the accepted
-aTLS key and exporter context. Local expected service, tenant, deployment,
-agent, task, and capability values match.
+TLS session key and exporter context. Local expected service, tenant,
+deployment, agent, task, and capability values match.
 
 Expected result: accept.
 
 ## Relay or Borrowed Evidence
 
 The grant is valid, but the Session Binding Statement names a different
-accepted aTLS key or exporter context than the lower aTLS session.
+accepted TLS key or exporter context than the accepted session.
 
 Expected result: reject with `session_binding_invalid`.
 
-## Diversion
+## Service / Tenant Diversion
 
 The grant is valid and session-bound, but its service, tenant, deployment, or
 environment differs from local expected policy.
 
 Expected result: reject with `policy_mismatch`.
+
+## Static Diversion Policy
+
+A static diversion policy is used when a deployment intentionally allows or
+denies a service, tenant, deployment, environment, or agent target change. The
+policy is local or policy-authority controlled, not peer-controlled.
+
+Expected results:
+
+- allowed client-visible diversion with notice: accept;
+- hidden diversion without an explicit hidden rule: reject;
+- wrong diverted target: reject;
+- denied rule: reject with audit fields preserved.
 
 ## Same-Machine Wrong-Agent
 
@@ -63,8 +76,8 @@ Expected result: reject with `grant_invalid` or `session_binding_invalid`.
 
 ## Measurement Mismatch
 
-The lower aTLS session has attestation evidence, but the appraised platform or
-VM measurement does not match local expected policy.
+The accepted TLS session has post-handshake attestation evidence, but the
+appraised platform or VM measurement does not match local expected policy.
 
 Expected result: reject with `policy_mismatch`.
 

@@ -17,10 +17,10 @@ import (
 	"time"
 
 	"github.com/absmach/supermq/pkg/errors"
-	"github.com/thinksyncs/agtp-atls-profile/agent"
-	"github.com/thinksyncs/agtp-atls-profile/agent/api/grpc"
-	"github.com/thinksyncs/agtp-atls-profile/agent/auth"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/progressbar"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/api/grpc"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/auth"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/progressbar"
 	"google.golang.org/grpc/metadata"
 )
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package identitypolicy validates deployment and agent identity policy inputs
-// that sit above the basic aTLS channel-binding checks.
+// that sit above the basic TLS and attestation channel-binding checks.
 package identitypolicy
 
 import (
@@ -43,6 +43,15 @@ const (
 	ModeRequired Mode = "required"
 )
 
+// SetMode selects how set-valued authorization fields should be matched.
+type SetMode string
+
+const (
+	SetModeDefault     SetMode = ""
+	SetModeContainsAll SetMode = "contains_all"
+	SetModeExact       SetMode = "exact"
+)
+
 const (
 	FieldAll                   = "*"
 	FieldService               = "service"
@@ -56,6 +65,9 @@ const (
 	FieldTaskID                = "task_id"
 	FieldThreadID              = "thread_id"
 	FieldDelegationID          = "delegation_id"
+	FieldIntentRef             = "intent_ref"
+	FieldCapabilityRef         = "capability_ref"
+	FieldOntologyID            = "ontology_id"
 	FieldScopes                = "scopes"
 	FieldResources             = "resources"
 	FieldAuthorizationDetails  = "authorization_details"
@@ -98,12 +110,15 @@ type Values struct {
 	TaskID               string   `json:"task_id,omitempty" yaml:"task_id,omitempty"`
 	ThreadID             string   `json:"thread_id,omitempty" yaml:"thread_id,omitempty"`
 	DelegationID         string   `json:"delegation_id,omitempty" yaml:"delegation_id,omitempty"`
+	IntentRef            string   `json:"intent_ref,omitempty" yaml:"intent_ref,omitempty"`
+	CapabilityRef        string   `json:"capability_ref,omitempty" yaml:"capability_ref,omitempty"`
+	OntologyID           string   `json:"ontology_id,omitempty" yaml:"ontology_id,omitempty"`
 	Scopes               []string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
 	Resources            []string `json:"resources,omitempty" yaml:"resources,omitempty"`
 	AuthorizationDetails []string `json:"authorization_details,omitempty" yaml:"authorization_details,omitempty"`
 }
 
-// Binding ties an observed identity assertion to the accepted aTLS session.
+// Binding ties an observed identity assertion to the accepted TLS session.
 type Binding struct {
 	LeafPublicKeySHA256     string    `json:"leaf_public_key_sha256,omitempty" yaml:"leaf_public_key_sha256,omitempty"`
 	RequestContextSHA256    string    `json:"request_context_sha256,omitempty" yaml:"request_context_sha256,omitempty"`
@@ -123,6 +138,7 @@ type Assertion struct {
 // Policy separates local expected values from observed peer values.
 type Policy struct {
 	Mode     Mode         `json:"mode,omitempty" yaml:"mode,omitempty"`
+	SetMode  SetMode      `json:"set_mode,omitempty" yaml:"set_mode,omitempty"`
 	Require  Requirements `json:"require" yaml:"require"`
 	Expected Values       `json:"expected" yaml:"expected"`
 }
@@ -145,10 +161,15 @@ func (p Policy) Enabled() bool {
 func (p Policy) ValidateMode() error {
 	switch p.Mode {
 	case ModeDefault, ModeDisabled, ModeRequired:
-		return nil
 	default:
 		return ErrInvalidMode
 	}
+	switch p.SetMode {
+	case SetModeDefault, SetModeContainsAll, SetModeExact:
+	default:
+		return ErrInvalidMode
+	}
+	return nil
 }
 
 // Validate checks observed values against this policy.
@@ -295,13 +316,14 @@ func Validate(policy Policy, observed Values) error {
 			{FieldTaskID, func(v Values) string { return v.TaskID }},
 			{FieldThreadID, func(v Values) string { return v.ThreadID }},
 			{FieldDelegationID, func(v Values) string { return v.DelegationID }},
+			{FieldIntentRef, func(v Values) string { return v.IntentRef }},
 		}); err != nil {
 			errs = appendValidationErrors(errs, err)
 		}
 	}
 
 	if policy.Require.L6 {
-		if err := validateL6(policy.Expected, observed); err != nil {
+		if err := validateL6(policy.Expected, observed, policy.setMode()); err != nil {
 			errs = appendValidationErrors(errs, err)
 		}
 	}
@@ -391,7 +413,7 @@ func validateExactLayer(layer string, expected, observed Values, fields []field)
 			continue
 		}
 		hasExpected = true
-		if err := validateValue(want); err != nil {
+		if err := validateFieldValue(f.name, want); err != nil {
 			errs = append(errs, validationError(layer, f.name, err))
 			continue
 		}
@@ -400,7 +422,7 @@ func validateExactLayer(layer string, expected, observed Values, fields []field)
 			errs = append(errs, validationError(layer, f.name, ErrMissingObserved))
 			continue
 		}
-		if err := validateValue(got); err != nil {
+		if err := validateFieldValue(f.name, got); err != nil {
 			errs = append(errs, validationError(layer, f.name, err))
 			continue
 		}
@@ -417,25 +439,58 @@ func validateExactLayer(layer string, expected, observed Values, fields []field)
 	return nil
 }
 
-func validateL6(expected, observed Values) error {
+func (p Policy) setMode() SetMode {
+	if p.SetMode == SetModeDefault {
+		return SetModeContainsAll
+	}
+	return p.SetMode
+}
+
+func validateL6(expected, observed Values, setMode SetMode) error {
 	var errs ValidationErrors
 	hasExpected := false
 	if len(expected.Scopes) > 0 {
 		hasExpected = true
-		if err := requireContainsAll(LayerL6, FieldScopes, expected.Scopes, observed.Scopes); err != nil {
+		if err := validateSet(LayerL6, FieldScopes, expected.Scopes, observed.Scopes, setMode); err != nil {
 			errs = appendValidationErrors(errs, err)
 		}
 	}
 	if len(expected.Resources) > 0 {
 		hasExpected = true
-		if err := requireContainsAll(LayerL6, FieldResources, expected.Resources, observed.Resources); err != nil {
+		if err := validateSet(LayerL6, FieldResources, expected.Resources, observed.Resources, setMode); err != nil {
 			errs = appendValidationErrors(errs, err)
 		}
 	}
 	if len(expected.AuthorizationDetails) > 0 {
 		hasExpected = true
-		if err := requireContainsAll(LayerL6, FieldAuthorizationDetails, expected.AuthorizationDetails, observed.AuthorizationDetails); err != nil {
+		if err := validateSet(LayerL6, FieldAuthorizationDetails, expected.AuthorizationDetails, observed.AuthorizationDetails, setMode); err != nil {
 			errs = appendValidationErrors(errs, err)
+		}
+	}
+	for _, f := range []field{
+		{FieldCapabilityRef, func(v Values) string { return v.CapabilityRef }},
+		{FieldOntologyID, func(v Values) string { return v.OntologyID }},
+	} {
+		want := f.get(expected)
+		if isEmpty(want) {
+			continue
+		}
+		hasExpected = true
+		if err := validateReferenceValue(want); err != nil {
+			errs = append(errs, validationError(LayerL6, f.name, err))
+			continue
+		}
+		got := f.get(observed)
+		if isEmpty(got) {
+			errs = append(errs, validationError(LayerL6, f.name, ErrMissingObserved))
+			continue
+		}
+		if err := validateReferenceValue(got); err != nil {
+			errs = append(errs, validationError(LayerL6, f.name, err))
+			continue
+		}
+		if got != want {
+			errs = append(errs, validationError(LayerL6, f.name, ErrMismatch))
 		}
 	}
 	if !hasExpected {
@@ -445,6 +500,17 @@ func validateL6(expected, observed Values) error {
 		return errs
 	}
 	return nil
+}
+
+func validateSet(layer, fieldName string, expected, observed []string, setMode SetMode) error {
+	switch setMode {
+	case SetModeDefault, SetModeContainsAll:
+		return requireContainsAll(layer, fieldName, expected, observed)
+	case SetModeExact:
+		return requireExactSet(layer, fieldName, expected, observed)
+	default:
+		return validationError(layer, fieldName, ErrInvalidMode)
+	}
 }
 
 func requireContainsAll(layer, fieldName string, expected, observed []string) error {
@@ -482,6 +548,49 @@ func requireContainsAll(layer, fieldName string, expected, observed []string) er
 	return nil
 }
 
+func requireExactSet(layer, fieldName string, expected, observed []string) error {
+	expectedSet, err := validatedSet(layer, fieldName, expected, ErrMissingExpected)
+	if err != nil {
+		return err
+	}
+	observedSet, err := validatedSet(layer, fieldName, observed, ErrMissingObserved)
+	if err != nil {
+		return err
+	}
+	if len(expectedSet) != len(observedSet) {
+		return validationError(layer, fieldName, ErrMismatch)
+	}
+	for value := range expectedSet {
+		if _, ok := observedSet[value]; !ok {
+			return validationError(layer, fieldName, ErrMismatch)
+		}
+	}
+	return nil
+}
+
+func validatedSet(layer, fieldName string, values []string, emptyErr error) (map[string]struct{}, error) {
+	if len(values) > MaxSetValues {
+		return nil, validationError(layer, fieldName, ErrTooManyValues)
+	}
+	set := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if isEmpty(value) {
+			if emptyErr == ErrMissingExpected {
+				return nil, validationError(layer, fieldName, emptyErr)
+			}
+			continue
+		}
+		if err := validateValue(value); err != nil {
+			return nil, validationError(layer, fieldName, err)
+		}
+		set[value] = struct{}{}
+	}
+	if len(set) == 0 {
+		return nil, validationError(layer, fieldName, emptyErr)
+	}
+	return set, nil
+}
+
 func appendValidationErrors(errs ValidationErrors, err error) ValidationErrors {
 	if err == nil {
 		return errs
@@ -517,6 +626,27 @@ func validateValue(value string) error {
 		return ErrUnsafeValue
 	}
 	return nil
+}
+
+func validateReferenceValue(value string) error {
+	if err := validateValue(value); err != nil {
+		return err
+	}
+	for _, r := range value {
+		if unicode.IsSpace(r) {
+			return ErrUnsafeValue
+		}
+	}
+	return nil
+}
+
+func validateFieldValue(fieldName, value string) error {
+	switch fieldName {
+	case FieldIntentRef, FieldCapabilityRef, FieldOntologyID:
+		return validateReferenceValue(value)
+	default:
+		return validateValue(value)
+	}
 }
 
 func isUnsafe(value string) bool {

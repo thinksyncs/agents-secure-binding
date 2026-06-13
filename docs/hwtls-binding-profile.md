@@ -1,16 +1,23 @@
-# AGTP aTLS Binding Profile
+# Hardware-Aware TLS Binding Profile
 
-This document describes the aTLS binding expectations for an AGTP security
-profile. It does not introduce new cryptography.
+Hardware-aware TLS binding expectations apply to application-profile material.
+AGTP is one reference target, but the profile does not define AGTP core syntax
+or introduce new cryptography.
+
+Hardware-aware TLS means ordinary TLS 1.3 plus post-handshake platform
+attestation bound to the accepted TLS session. It is not a replacement for the
+TLS 1.3 handshake and is not pre-TLS platform authentication. The application
+should withhold profile-level trust until the post-handshake attestation and
+binding checks succeed.
 
 ## Binding Goal
 
-The relying party should accept AGTP profile material only when it is tied to
-the same accepted aTLS session and to locally expected identity policy.
+The relying party should accept application-profile material only when it is
+tied to the same accepted TLS session and to locally expected identity policy.
 
 The profile separates two questions:
 
-- L2 relay defense: is the profile material bound to this accepted aTLS
+- L2 relay defense: is the profile material bound to this accepted TLS
   session?
 - L3 and above: is the accepted session the intended deployment, agent, task, or
   authorized actor?
@@ -54,14 +61,16 @@ A Session Binding Statement should include:
 - profile type;
 - profile version;
 - grant hash;
-- accepted aTLS key or key fingerprint;
+- accepted TLS endpoint key or key fingerprint;
 - accepted exporter context or equivalent session-binding value;
 - nonce or binding id;
 - expiry;
 - issuer or signer key id.
 
-The signer must be the confirmation key named by the verified Identity Grant, or
-another key explicitly authorized by local policy.
+The signer must be the Agent confirmation key named by the verified Identity
+Grant, or another key explicitly authorized by the verified grant or local
+policy. Manager or policy-authority signing keys MUST NOT be accepted as
+Session Binding Statement signer keys.
 
 ## Failure Semantics
 
@@ -83,6 +92,5 @@ audience-restricted tokens.
 
 ## Feedback Boundary
 
-If existing AGTP syntax already has a place for profile material, this profile
-should use it. If not, the feedback to AGTP should request only the smallest
-profile extension needed to carry or reference the security-profile material.
+If AGTP already has a place for this material, use it. If not, ask for the
+smallest extension needed to carry or reference the security-profile material.

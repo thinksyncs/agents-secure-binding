@@ -6,10 +6,10 @@ import (
 	"context"
 
 	"github.com/absmach/supermq/pkg/errors"
-	"github.com/thinksyncs/agtp-atls-profile/agent"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/clients"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/clients/grpc"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/tls"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients/grpc"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/tls"
 	grpchealth "google.golang.org/grpc/health/grpc_health_v1"
 )
 

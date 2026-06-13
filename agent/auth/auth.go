@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/absmach/supermq/pkg/errors"
-	"github.com/thinksyncs/agtp-atls-profile/agent"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"

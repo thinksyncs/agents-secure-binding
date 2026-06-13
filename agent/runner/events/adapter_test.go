@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	logpb "github.com/thinksyncs/agtp-atls-profile/agent/log"
+	logpb "github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/log"
 )
 
 const testServiceName = "test-service"

@@ -72,6 +72,15 @@ func TestValidateRejectsInvalidMode(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsInvalidSetMode(t *testing.T) {
+	policy := Policy{SetMode: SetMode("fuzzy")}
+
+	err := Validate(policy, Values{})
+	if !errors.Is(err, ErrInvalidMode) {
+		t.Fatalf("Validate() error = %v, want %v", err, ErrInvalidMode)
+	}
+}
+
 func TestValidateAcceptsMatchingRequiredLayers(t *testing.T) {
 	policy := Policy{
 		Require: Requirements{
@@ -174,6 +183,54 @@ func TestValidateAcceptsObservedSetSupersetWithDuplicatesAndBlanks(t *testing.T)
 	}
 }
 
+func TestValidateExactSetRejectsExtraObservedValues(t *testing.T) {
+	policy := Policy{
+		SetMode: SetModeExact,
+		Require: Requirements{L6: true},
+		Expected: Values{
+			Scopes:               []string{"read:orders"},
+			Resources:            []string{"orders"},
+			AuthorizationDetails: []string{"settle"},
+		},
+	}
+
+	err := Validate(policy, Values{
+		Scopes:               []string{"read:orders", "write:audit"},
+		Resources:            []string{"orders", "audit-log"},
+		AuthorizationDetails: []string{"settle", "notify"},
+	})
+	if !errors.Is(err, ErrMismatch) {
+		t.Fatalf("Validate() error = %v, want %v", err, ErrMismatch)
+	}
+
+	var validationErrs ValidationErrors
+	if !errors.As(err, &validationErrs) {
+		t.Fatalf("Validate() error = %T, want ValidationErrors", err)
+	}
+	for _, field := range []string{FieldScopes, FieldResources, FieldAuthorizationDetails} {
+		if !validationErrs.Has(LayerL6, field, ErrMismatch) {
+			t.Fatalf("Validate() errors do not include L6 %s mismatch", field)
+		}
+	}
+}
+
+func TestValidateExactSetAcceptsDuplicatesAndBlanks(t *testing.T) {
+	policy := Policy{
+		SetMode: SetModeExact,
+		Require: Requirements{L6: true},
+		Expected: Values{
+			Scopes: []string{"read:orders", "read:orders"},
+		},
+	}
+
+	err := Validate(policy, Values{
+		Scopes: []string{" ", "read:orders", "read:orders"},
+	})
+	if err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
 func TestValidateAcceptsPrintablePolicyValues(t *testing.T) {
 	policy := Policy{
 		Require: Requirements{
@@ -193,6 +250,239 @@ func TestValidateAcceptsPrintablePolicyValues(t *testing.T) {
 
 	if err := Validate(policy, observed); err != nil {
 		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestValidateAcceptsCanonicalReferenceValues(t *testing.T) {
+	policy := Policy{
+		Require: Requirements{
+			L5: true,
+			L6: true,
+		},
+		Expected: Values{
+			IntentRef:     "urn:agtp:intent:orders:settle:v1",
+			CapabilityRef: "urn:agtp:capability:orders:settle",
+			OntologyID:    "urn:agtp:ontology:orders:v1",
+		},
+	}
+
+	observed := Values{
+		IntentRef:     "urn:agtp:intent:orders:settle:v1",
+		CapabilityRef: "urn:agtp:capability:orders:settle",
+		OntologyID:    "urn:agtp:ontology:orders:v1",
+	}
+
+	if err := Validate(policy, observed); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestValidateRejectsFreeFormIntentReference(t *testing.T) {
+	policy := Policy{
+		Require:  Requirements{L5: true},
+		Expected: Values{IntentRef: "urn:agtp:intent:orders:settle:v1"},
+	}
+
+	err := Validate(policy, Values{IntentRef: "settle the order if it looks safe"})
+	if !errors.Is(err, ErrUnsafeValue) {
+		t.Fatalf("Validate() error = %v, want %v", err, ErrUnsafeValue)
+	}
+
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("Validate() error = %T, want *ValidationError", err)
+	}
+	if validationErr.Layer != LayerL5 || validationErr.Field != FieldIntentRef {
+		t.Fatalf("Validate() error layer/field = %s/%s", validationErr.Layer, validationErr.Field)
+	}
+}
+
+func TestValidateRejectsMismatchedCapabilityReference(t *testing.T) {
+	policy := Policy{
+		Require:  Requirements{L6: true},
+		Expected: Values{CapabilityRef: "urn:agtp:capability:orders:settle"},
+	}
+
+	err := Validate(policy, Values{CapabilityRef: "urn:agtp:capability:orders:read"})
+	if !errors.Is(err, ErrMismatch) {
+		t.Fatalf("Validate() error = %v, want %v", err, ErrMismatch)
+	}
+}
+
+func TestValidateDoesNotNormalizePeerProvidedReferenceValues(t *testing.T) {
+	policy := Policy{
+		Require: Requirements{
+			L5: true,
+			L6: true,
+		},
+		Expected: Values{
+			IntentRef:     "urn:agtp:intent:orders:settle:v1",
+			CapabilityRef: "urn:agtp:capability:orders:settle",
+			OntologyID:    "urn:agtp:ontology:orders:v1",
+		},
+	}
+
+	err := Validate(policy, Values{
+		IntentRef:     "URN:AGTP:INTENT:ORDERS:SETTLE:V1",
+		CapabilityRef: "urn:agtp:capability:orders:settle/",
+		OntologyID:    "urn:agtp:ontology:orders:v1",
+	})
+	if !errors.Is(err, ErrMismatch) {
+		t.Fatalf("Validate() error = %v, want %v", err, ErrMismatch)
+	}
+
+	var validationErrs ValidationErrors
+	if !errors.As(err, &validationErrs) {
+		t.Fatalf("Validate() error = %T, want ValidationErrors", err)
+	}
+	if !validationErrs.Has(LayerL5, FieldIntentRef, ErrMismatch) {
+		t.Fatalf("Validate() errors do not include L5 intent_ref mismatch")
+	}
+	if !validationErrs.Has(LayerL6, FieldCapabilityRef, ErrMismatch) {
+		t.Fatalf("Validate() errors do not include L6 capability_ref mismatch")
+	}
+}
+
+func TestValidateAcceptsStrictSemanticAuthorization(t *testing.T) {
+	policy := Policy{
+		SetMode: SetModeExact,
+		Require: Requirements{
+			L5: true,
+			L6: true,
+		},
+		Expected: Values{
+			TaskID:               "task-123",
+			IntentRef:            "urn:agtp:intent:orders:settle:v1",
+			CapabilityRef:        "urn:agtp:capability:orders:settle",
+			OntologyID:           "urn:agtp:ontology:orders:v1",
+			Scopes:               []string{"orders:settle"},
+			Resources:            []string{"urn:agtp:resource:orders:batch-42"},
+			AuthorizationDetails: []string{"purpose:monthly-settlement"},
+		},
+	}
+
+	observed := Values{
+		TaskID:               "task-123",
+		IntentRef:            "urn:agtp:intent:orders:settle:v1",
+		CapabilityRef:        "urn:agtp:capability:orders:settle",
+		OntologyID:           "urn:agtp:ontology:orders:v1",
+		Scopes:               []string{"orders:settle"},
+		Resources:            []string{"urn:agtp:resource:orders:batch-42"},
+		AuthorizationDetails: []string{"purpose:monthly-settlement"},
+	}
+
+	if err := Validate(policy, observed); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestValidateRejectsStrictSemanticAuthorizationDrift(t *testing.T) {
+	policy := Policy{
+		SetMode: SetModeExact,
+		Require: Requirements{
+			L5: true,
+			L6: true,
+		},
+		Expected: Values{
+			TaskID:               "task-123",
+			IntentRef:            "urn:agtp:intent:orders:settle:v1",
+			CapabilityRef:        "urn:agtp:capability:orders:settle",
+			OntologyID:           "urn:agtp:ontology:orders:v1",
+			Scopes:               []string{"orders:settle"},
+			Resources:            []string{"urn:agtp:resource:orders:batch-42"},
+			AuthorizationDetails: []string{"purpose:monthly-settlement"},
+		},
+	}
+
+	tests := []struct {
+		name  string
+		field string
+		layer string
+		edit  func(*Values)
+	}{
+		{
+			name:  "wrong intent reference",
+			layer: LayerL5,
+			field: FieldIntentRef,
+			edit: func(v *Values) {
+				v.IntentRef = "urn:agtp:intent:orders:read:v1"
+			},
+		},
+		{
+			name:  "wrong capability reference",
+			layer: LayerL6,
+			field: FieldCapabilityRef,
+			edit: func(v *Values) {
+				v.CapabilityRef = "urn:agtp:capability:orders:admin"
+			},
+		},
+		{
+			name:  "wrong ontology identifier",
+			layer: LayerL6,
+			field: FieldOntologyID,
+			edit: func(v *Values) {
+				v.OntologyID = "urn:agtp:ontology:billing:v1"
+			},
+		},
+		{
+			name:  "wrong authorization detail",
+			layer: LayerL6,
+			field: FieldAuthorizationDetails,
+			edit: func(v *Values) {
+				v.AuthorizationDetails = []string{"purpose:ad-hoc-debug"}
+			},
+		},
+		{
+			name:  "extra scope",
+			layer: LayerL6,
+			field: FieldScopes,
+			edit: func(v *Values) {
+				v.Scopes = []string{"orders:settle", "orders:admin"}
+			},
+		},
+		{
+			name:  "extra resource",
+			layer: LayerL6,
+			field: FieldResources,
+			edit: func(v *Values) {
+				v.Resources = []string{"urn:agtp:resource:orders:batch-42", "urn:agtp:resource:audit-log"}
+			},
+		},
+		{
+			name:  "extra authorization detail",
+			layer: LayerL6,
+			field: FieldAuthorizationDetails,
+			edit: func(v *Values) {
+				v.AuthorizationDetails = []string{"purpose:monthly-settlement", "purpose:debug"}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			observed := Values{
+				TaskID:               "task-123",
+				IntentRef:            "urn:agtp:intent:orders:settle:v1",
+				CapabilityRef:        "urn:agtp:capability:orders:settle",
+				OntologyID:           "urn:agtp:ontology:orders:v1",
+				Scopes:               []string{"orders:settle"},
+				Resources:            []string{"urn:agtp:resource:orders:batch-42"},
+				AuthorizationDetails: []string{"purpose:monthly-settlement"},
+			}
+			tt.edit(&observed)
+
+			err := Validate(policy, observed)
+			if !errors.Is(err, ErrMismatch) {
+				t.Fatalf("Validate() error = %v, want %v", err, ErrMismatch)
+			}
+			var validationErrs ValidationErrors
+			if !errors.As(err, &validationErrs) {
+				t.Fatalf("Validate() error = %T, want ValidationErrors", err)
+			}
+			if !validationErrs.Has(tt.layer, tt.field, ErrMismatch) {
+				t.Fatalf("Validate() errors do not include %s %s mismatch", tt.layer, tt.field)
+			}
+		})
 	}
 }
 

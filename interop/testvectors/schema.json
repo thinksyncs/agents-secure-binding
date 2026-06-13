@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/agtp-atls-profile-test-vector.schema.json",
-  "title": "AGTP aTLS Security-Profile Test Vector",
+  "$id": "https://example.invalid/hwtls-id-profile-test-vector.schema.json",
+  "title": "Hardware-Aware TLS Identity-Binding Test Vector",
   "type": "object",
   "required": [
     "id",
@@ -202,6 +202,15 @@
           "type": "string"
         },
         "task": {
+          "type": "string"
+        },
+        "intent_ref": {
+          "type": "string"
+        },
+        "capability_ref": {
+          "type": "string"
+        },
+        "ontology_id": {
           "type": "string"
         },
         "capabilities": {

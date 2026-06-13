@@ -11,10 +11,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/thinksyncs/agtp-atls-profile/pkg/agtp"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls/ea"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls/identitypolicy"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/agtp"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/ea"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/identitypolicy"
 )
 
 var (

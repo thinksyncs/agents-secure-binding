@@ -3,9 +3,9 @@
 package manager
 
 import (
-	"github.com/thinksyncs/agtp-atls-profile/manager"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/clients"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/clients/grpc"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients/grpc"
 )
 
 // NewManagerClient creates new manager gRPC client instance.

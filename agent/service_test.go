@@ -23,17 +23,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/thinksyncs/agtp-atls-profile/agent/algorithm"
-	"github.com/thinksyncs/agtp-atls-profile/agent/algorithm/python"
-	agentevents "github.com/thinksyncs/agtp-atls-profile/agent/events"
-	"github.com/thinksyncs/agtp-atls-profile/agent/events/mocks"
-	runnerpb "github.com/thinksyncs/agtp-atls-profile/agent/runner"
-	"github.com/thinksyncs/agtp-atls-profile/agent/statemachine"
-	smmocks "github.com/thinksyncs/agtp-atls-profile/agent/statemachine/mocks"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation/vtpm"
-	runnermocks "github.com/thinksyncs/agtp-atls-profile/pkg/clients/grpc/runner/mocks"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/oci"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/algorithm"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/algorithm/python"
+	agentevents "github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/events"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/events/mocks"
+	runnerpb "github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/runner"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/statemachine"
+	smmocks "github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/statemachine/mocks"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation/vtpm"
+	runnermocks "github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients/grpc/runner/mocks"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/oci"
 	"golang.org/x/crypto/sha3"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -568,7 +568,7 @@ func TestStopComputation(t *testing.T) {
 
 			// Use real dirs for test
 			// algorithm.DatasetsDir refers to global var?
-			// "github.com/thinksyncs/agtp-atls-profile/agent/algorithm"
+			// "github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/algorithm"
 			// It uses hardcoded path "datasets" and "results" in current dir.
 			// Tests create them in current dir.
 

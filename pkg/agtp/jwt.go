@@ -1,8 +1,8 @@
 // Copyright (c) Ultraviolet
 // SPDX-License-Identifier: Apache-2.0
 
-// Package agtp implements the JWT/JWS profile used to feed AGTP identity
-// material into the aTLS identity-policy validator.
+// Package agtp implements wire-token profiles used to feed AGTP identity
+// material into the hardware-aware TLS identity-policy validator.
 package agtp
 
 import (
@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls/identitypolicy"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/identitypolicy"
 )
 
 var (
@@ -32,6 +32,7 @@ var (
 	ErrMissingJWTID            = errors.New("agtp: missing JWT id")
 	ErrRevokedJWTID            = errors.New("agtp: revoked JWT id")
 	ErrMissingSubject          = errors.New("agtp: missing subject")
+	ErrMissingIdentityGrant    = errors.New("agtp: missing identity grant")
 	ErrMissingGrantHash        = errors.New("agtp: missing grant hash")
 	ErrMissingBindingField     = errors.New("agtp: missing session binding field")
 	ErrMissingIdentityPolicy   = errors.New("agtp: missing identity policy")
@@ -44,9 +45,10 @@ const (
 	ClaimTokenType      = "agtp_type"
 	ClaimProfileVersion = "agtp_version"
 
-	TokenTypeIdentityGrant  = "agtp.identity-grant"
-	TokenTypeSessionBinding = "agtp.session-binding"
-	ProfileVersion          = "1"
+	TokenTypeIdentityGrant   = "agtp.identity-grant"
+	TokenTypeSessionBinding  = "agtp.session-binding"
+	TokenTypeSessionEnvelope = "agtp.session-envelope"
+	ProfileVersion           = "1"
 )
 
 // KeyFunc resolves a JWT verification key by protected-header key id.
@@ -130,6 +132,9 @@ type identityGrantClaims struct {
 	TaskID        string `json:"task_id,omitempty"`
 	ThreadID      string `json:"thread_id,omitempty"`
 	DelegationID  string `json:"delegation_id,omitempty"`
+	IntentRef     string `json:"intent_ref,omitempty"`
+	CapabilityRef string `json:"capability_ref,omitempty"`
+	OntologyID    string `json:"ontology_id,omitempty"`
 
 	Scope                string   `json:"scope,omitempty"`
 	Scopes               []string `json:"scopes,omitempty"`
@@ -141,6 +146,19 @@ type identityGrantClaims struct {
 type sessionBindingClaims struct {
 	jwt.RegisteredClaims
 	profileClaims
+
+	GrantHash               string `json:"grant_hash,omitempty"`
+	LeafPublicKeySHA256     string `json:"leaf_public_key_sha256,omitempty"`
+	RequestContextSHA256    string `json:"request_context_sha256,omitempty"`
+	AttestationBinderSHA256 string `json:"attestation_binder_sha256,omitempty"`
+	Nonce                   string `json:"nonce,omitempty"`
+}
+
+type sessionEnvelopeClaims struct {
+	jwt.RegisteredClaims
+	profileClaims
+
+	IdentityGrantJWT string `json:"identity_grant_jwt,omitempty"`
 
 	GrantHash               string `json:"grant_hash,omitempty"`
 	LeafPublicKeySHA256     string `json:"leaf_public_key_sha256,omitempty"`
@@ -191,6 +209,9 @@ func VerifyIdentityGrantJWT(tokenString string, opts JWTVerifyOptions) (identity
 		TaskID:               claims.TaskID,
 		ThreadID:             claims.ThreadID,
 		DelegationID:         claims.DelegationID,
+		IntentRef:            claims.IntentRef,
+		CapabilityRef:        claims.CapabilityRef,
+		OntologyID:           claims.OntologyID,
 		Scopes:               appendScopeValues(claims.Scopes, claims.Scope),
 		Resources:            appendScopeValues(claims.Resources, claims.Resource),
 		AuthorizationDetails: claims.AuthorizationDetails,
@@ -254,9 +275,69 @@ func VerifySessionBindingJWT(tokenString string, opts JWTVerifyOptions) (identit
 	}, nil
 }
 
+// VerifySessionIdentityJWTEnvelope verifies a single-envelope JWT/JWS transport
+// profile. The outer envelope is signed by the Agent binding key and carries
+// the exact inner Manager-signed Identity Grant JWT plus the session-binding
+// fields for that grant. Both signatures and the grant_hash link are required.
+func VerifySessionIdentityJWTEnvelope(envelopeToken string, opts SessionIdentityJWTOptions) (SessionIdentityJWTResult, error) {
+	if !opts.Policy.Enabled() {
+		return SessionIdentityJWTResult{}, ErrMissingIdentityPolicy
+	}
+
+	now := opts.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+
+	bindingOpts := opts.SessionBinding
+	bindingOpts.Now = now
+	claims := &sessionEnvelopeClaims{}
+	_, signerKey, err := parseJWT(envelopeToken, claims, bindingOpts)
+	if err != nil {
+		return SessionIdentityJWTResult{}, err
+	}
+	if err := validateProfileClaims(claims.profileClaims, TokenTypeSessionEnvelope); err != nil {
+		return SessionIdentityJWTResult{}, err
+	}
+	if strings.TrimSpace(claims.ID) == "" {
+		return SessionIdentityJWTResult{}, ErrMissingJWTID
+	}
+	if strings.TrimSpace(claims.IdentityGrantJWT) == "" {
+		return SessionIdentityJWTResult{}, ErrMissingIdentityGrant
+	}
+	if err := validateSessionBindingClaims(claims.sessionBindingClaims()); err != nil {
+		return SessionIdentityJWTResult{}, err
+	}
+
+	grantOpts := opts.Grant
+	grantOpts.Now = now
+	grant, err := VerifyIdentityGrantJWT(claims.IdentityGrantJWT, grantOpts)
+	if err != nil {
+		return SessionIdentityJWTResult{}, err
+	}
+
+	statement := claims.verifiedStatement(signerKey, bindingOpts.ExpectedAudience)
+	assertion, err := identitypolicy.NewAssertionFromSessionBinding(grant, statement, now)
+	if err != nil {
+		return SessionIdentityJWTResult{}, err
+	}
+	if err := opts.Policy.ValidateAssertion(assertion, opts.ExpectedBinding, now); err != nil {
+		return SessionIdentityJWTResult{}, err
+	}
+	if err := identitypolicy.MarkSessionBindingUsed(opts.ReplayCache, statement); err != nil {
+		return SessionIdentityJWTResult{}, err
+	}
+
+	return SessionIdentityJWTResult{
+		Grant:     grant,
+		Statement: statement,
+		Assertion: assertion,
+	}, nil
+}
+
 // VerifySessionIdentityJWT verifies the complete initial AGTP JWT/JWS profile:
 // a locally trusted Identity Grant, a session-binding statement authorized by
-// that grant, the accepted aTLS session binding, and local expected policy.
+// that grant, the accepted TLS session binding, and local expected policy.
 func VerifySessionIdentityJWT(grantToken, bindingToken string, opts SessionIdentityJWTOptions) (SessionIdentityJWTResult, error) {
 	if !opts.Policy.Enabled() {
 		return SessionIdentityJWTResult{}, ErrMissingIdentityPolicy
@@ -449,6 +530,8 @@ func jwtIDFromClaims(claims jwt.Claims) string {
 		return c.ID
 	case *sessionBindingClaims:
 		return c.ID
+	case *sessionEnvelopeClaims:
+		return c.ID
 	default:
 		return ""
 	}
@@ -476,4 +559,34 @@ func appendScopeValues(values []string, spaceSeparated string) []string {
 	out := append([]string{}, values...)
 	out = append(out, strings.Fields(spaceSeparated)...)
 	return out
+}
+
+func (c *sessionEnvelopeClaims) sessionBindingClaims() *sessionBindingClaims {
+	return &sessionBindingClaims{
+		GrantHash:               c.GrantHash,
+		LeafPublicKeySHA256:     c.LeafPublicKeySHA256,
+		RequestContextSHA256:    c.RequestContextSHA256,
+		AttestationBinderSHA256: c.AttestationBinderSHA256,
+		Nonce:                   c.Nonce,
+	}
+}
+
+func (c *sessionEnvelopeClaims) verifiedStatement(signerKey, audience string) identitypolicy.VerifiedSessionBindingStatement {
+	var issuedAt time.Time
+	if c.IssuedAt != nil {
+		issuedAt = c.IssuedAt.Time
+	}
+	return identitypolicy.VerifiedSessionBindingStatement{
+		GrantHash: c.GrantHash,
+		Audience:  audience,
+		SignerKey: signerKey,
+		Binding: identitypolicy.Binding{
+			LeafPublicKeySHA256:     c.LeafPublicKeySHA256,
+			RequestContextSHA256:    c.RequestContextSHA256,
+			AttestationBinderSHA256: c.AttestationBinderSHA256,
+			Nonce:                   c.Nonce,
+			IssuedAt:                issuedAt,
+			ExpiresAt:               c.ExpiresAt.Time,
+		},
+	}
 }

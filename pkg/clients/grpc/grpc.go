@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/absmach/supermq/pkg/errors"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/clients"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/tls"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/tls"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

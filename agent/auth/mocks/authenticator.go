@@ -11,7 +11,7 @@ import (
 	"context"
 
 	mock "github.com/stretchr/testify/mock"
-	"github.com/thinksyncs/agtp-atls-profile/agent/auth"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/auth"
 )
 
 // NewAuthenticator creates a new instance of Authenticator. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

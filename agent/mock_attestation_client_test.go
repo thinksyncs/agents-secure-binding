@@ -6,7 +6,7 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/mock"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation"
 )
 
 type MockAttestationClient struct {

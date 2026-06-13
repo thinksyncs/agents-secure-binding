@@ -19,9 +19,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls/ea"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls/identitypolicy"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/ea"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/identitypolicy"
 )
+
+const testIdentityBindingNonce = "identity-binding-nonce"
 
 func selfSignedCert(t *testing.T) tls.Certificate {
 	t.Helper()
@@ -307,7 +309,7 @@ func TestValidateIdentityPolicyAcceptsObservedIdentity(t *testing.T) {
 func TestValidateIdentityPolicyAcceptsVerifiedGrantAndBinding(t *testing.T) {
 	validation := validationResultForIdentityPolicy(t)
 	binding := bindingForAssertion(t, validation)
-	binding.Nonce = "identity-binding-nonce"
+	binding.Nonce = testIdentityBindingNonce
 	cfg := &ClientConfig{
 		IdentityPolicy: identitypolicy.Policy{
 			Require:  identitypolicy.Requirements{L3: true, L4: true},
@@ -338,7 +340,7 @@ func TestValidateIdentityPolicyAcceptsVerifiedGrantAndBinding(t *testing.T) {
 func TestValidateIdentityPolicyRejectsVerifiedGrantReplay(t *testing.T) {
 	validation := validationResultForIdentityPolicy(t)
 	binding := bindingForAssertion(t, validation)
-	binding.Nonce = "identity-binding-nonce"
+	binding.Nonce = testIdentityBindingNonce
 	replayCache := newTransportReplayCache()
 	cfg := &ClientConfig{
 		IdentityPolicy: identitypolicy.Policy{
@@ -375,7 +377,7 @@ func TestValidateIdentityPolicyRejectsVerifiedGrantReplay(t *testing.T) {
 func TestValidateIdentityPolicyDoesNotConsumeReplayOnPolicyMismatch(t *testing.T) {
 	validation := validationResultForIdentityPolicy(t)
 	binding := bindingForAssertion(t, validation)
-	binding.Nonce = "identity-binding-nonce"
+	binding.Nonce = testIdentityBindingNonce
 	replayCache := newTransportReplayCache()
 	cfg := &ClientConfig{
 		IdentityPolicy: identitypolicy.Policy{

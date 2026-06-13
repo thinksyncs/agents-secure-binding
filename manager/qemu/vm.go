@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/thinksyncs/agtp-atls-profile/internal"
-	"github.com/thinksyncs/agtp-atls-profile/manager/vm"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/manager"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/internal"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/vm"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/manager"
 )
 
 const (

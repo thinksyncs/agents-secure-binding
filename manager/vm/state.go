@@ -6,7 +6,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/thinksyncs/agtp-atls-profile/pkg/manager"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/manager"
 )
 
 type sm struct {

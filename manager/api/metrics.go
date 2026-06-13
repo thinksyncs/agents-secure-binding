@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/metrics"
-	"github.com/thinksyncs/agtp-atls-profile/manager"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager"
 )
 
 var _ manager.Service = (*metricsMiddleware)(nil)

@@ -13,9 +13,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/thinksyncs/agtp-atls-profile/agent/algorithm"
-	"github.com/thinksyncs/agtp-atls-profile/agent/algorithm/logging"
-	"github.com/thinksyncs/agtp-atls-profile/agent/events"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/algorithm"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/algorithm/logging"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/events"
 	"google.golang.org/grpc/metadata"
 )
 

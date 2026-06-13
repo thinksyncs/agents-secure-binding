@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	cocosai "github.com/thinksyncs/agtp-atls-profile"
+	cocosai "github.com/thinksyncs/hardware-aware-tls-identity-binding"
 )
 
 func TestEmptyProvider_Attestation(t *testing.T) {

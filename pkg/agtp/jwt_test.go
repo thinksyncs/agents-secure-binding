@@ -6,30 +6,43 @@ package agtp
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls/identitypolicy"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/identitypolicy"
+)
+
+const (
+	testServicePayments     = "payments"
+	testServiceAnalytics    = "analytics"
+	testIntentOrdersSettle  = "urn:agtp:intent:orders:settle:v1"
+	testCapabilitySettle    = "urn:agtp:capability:orders:settle"
+	testOntologyOrders      = "urn:agtp:ontology:orders:v1"
+	testResourceOrdersBatch = "urn:agtp:resource:orders:batch-42"
 )
 
 func TestVerifyIdentityGrantJWTMapsClaims(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	tokenString := signTestJWT(t, "manager-key", []byte("manager-secret"), jwt.MapClaims{
-		"iss":          "manager",
-		"sub":          "agent-a",
-		"aud":          "client-a",
-		"jti":          "grant-1",
-		"iat":          now.Unix(),
-		"exp":          now.Add(time.Minute).Unix(),
-		"agtp_type":    TokenTypeIdentityGrant,
-		"agtp_version": ProfileVersion,
-		"cnf":          map[string]any{"kid": "agent-key-1"},
-		"service":      "payments",
-		"tenant":       "tenant-a",
-		"deployment":   "prod",
-		"scope":        "orders:read orders:write",
-		"resource":     "orders",
+		"iss":            "manager",
+		"sub":            "agent-a",
+		"aud":            "client-a",
+		"jti":            "grant-1",
+		"iat":            now.Unix(),
+		"exp":            now.Add(time.Minute).Unix(),
+		"agtp_type":      TokenTypeIdentityGrant,
+		"agtp_version":   ProfileVersion,
+		"cnf":            map[string]any{"kid": "agent-key-1"},
+		"service":        testServicePayments,
+		"tenant":         "tenant-a",
+		"deployment":     "prod",
+		"intent_ref":     testIntentOrdersSettle,
+		"capability_ref": testCapabilitySettle,
+		"ontology_id":    testOntologyOrders,
+		"scope":          "orders:read orders:write",
+		"resource":       "orders",
 	})
 
 	grant, err := VerifyIdentityGrantJWT(tokenString, JWTVerifyOptions{
@@ -54,6 +67,15 @@ func TestVerifyIdentityGrantJWTMapsClaims(t *testing.T) {
 	}
 	if grant.Values.Agent != "agent-a" {
 		t.Fatalf("grant agent = %q, want sub fallback", grant.Values.Agent)
+	}
+	if grant.Values.IntentRef != testIntentOrdersSettle {
+		t.Fatalf("grant intent ref = %q, want canonical intent ref", grant.Values.IntentRef)
+	}
+	if grant.Values.CapabilityRef != testCapabilitySettle {
+		t.Fatalf("grant capability ref = %q, want canonical capability ref", grant.Values.CapabilityRef)
+	}
+	if grant.Values.OntologyID != testOntologyOrders {
+		t.Fatalf("grant ontology id = %q, want canonical ontology id", grant.Values.OntologyID)
 	}
 	if !slices.Equal(grant.Values.Scopes, []string{"orders:read", "orders:write"}) {
 		t.Fatalf("grant scopes = %#v", grant.Values.Scopes)
@@ -273,7 +295,7 @@ func TestVerifySessionBindingJWTFeedsIdentityPolicy(t *testing.T) {
 		"agtp_type":    TokenTypeIdentityGrant,
 		"agtp_version": ProfileVersion,
 		"cnf":          map[string]any{"kid": "agent-key-1"},
-		"service":      "payments",
+		"service":      testServicePayments,
 		"deployment":   "prod",
 		"task_id":      "task-1",
 		"scope":        "orders:read",
@@ -322,7 +344,7 @@ func TestVerifySessionBindingJWTFeedsIdentityPolicy(t *testing.T) {
 	policy := identitypolicy.Policy{
 		Require: identitypolicy.Requirements{L3: true, L4: true, L5: true, L6: true},
 		Expected: identitypolicy.Values{
-			Service:    "payments",
+			Service:    testServicePayments,
 			Deployment: "prod",
 			Agent:      "agent-a",
 			TaskID:     "task-1",
@@ -352,7 +374,7 @@ func TestVerifySessionIdentityJWTAcceptsManagerGrantAndLocalPolicy(t *testing.T)
 		"agtp_type":    TokenTypeIdentityGrant,
 		"agtp_version": ProfileVersion,
 		"cnf":          map[string]any{"kid": "agent-key-1"},
-		"service":      "payments",
+		"service":      testServicePayments,
 		"deployment":   "prod",
 		"task_id":      "task-1",
 		"scope":        "orders:read",
@@ -379,8 +401,106 @@ func TestVerifySessionIdentityJWTAcceptsManagerGrantAndLocalPolicy(t *testing.T)
 	if result.Grant.GrantHash != grantHash {
 		t.Fatalf("result grant hash = %q, want %q", result.Grant.GrantHash, grantHash)
 	}
-	if result.Assertion.Values.Service != "payments" {
+	if result.Assertion.Values.Service != testServicePayments {
 		t.Fatalf("result service = %q, want payments", result.Assertion.Values.Service)
+	}
+}
+
+func TestVerifySessionIdentityJWTAcceptsStrictSemanticAuthorization(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	grantClaims := testDefaultGrantClaims(now)
+	grantClaims["intent_ref"] = testIntentOrdersSettle
+	grantClaims["capability_ref"] = testCapabilitySettle
+	grantClaims["ontology_id"] = testOntologyOrders
+	grantClaims["scope"] = "orders:settle"
+	grantClaims["resource"] = testResourceOrdersBatch
+	grantClaims["authorization_details"] = []string{"purpose:monthly-settlement"}
+	grantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), grantClaims)
+	bindingToken := signTestJWT(t, "agent-key-1", []byte("agent-secret"), testDefaultBindingClaims(now, IdentityGrantHash(grantToken)))
+
+	opts := testSessionIdentityOptions(now)
+	opts.Policy.SetMode = identitypolicy.SetModeExact
+	opts.Policy.Expected.IntentRef = testIntentOrdersSettle
+	opts.Policy.Expected.CapabilityRef = testCapabilitySettle
+	opts.Policy.Expected.OntologyID = testOntologyOrders
+	opts.Policy.Expected.Scopes = []string{"orders:settle"}
+	opts.Policy.Expected.Resources = []string{testResourceOrdersBatch}
+	opts.Policy.Expected.AuthorizationDetails = []string{"purpose:monthly-settlement"}
+
+	result, err := VerifySessionIdentityJWT(grantToken, bindingToken, opts)
+	if err != nil {
+		t.Fatalf("VerifySessionIdentityJWT() error = %v", err)
+	}
+	if result.Assertion.Values.CapabilityRef != testCapabilitySettle {
+		t.Fatalf("assertion capability ref = %q, want strict capability ref", result.Assertion.Values.CapabilityRef)
+	}
+}
+
+func TestVerifySessionIdentityJWTRejectsStrictSemanticAuthorizationDrift(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	grantClaims := testDefaultGrantClaims(now)
+	grantClaims["intent_ref"] = testIntentOrdersSettle
+	grantClaims["capability_ref"] = "urn:agtp:capability:orders:admin"
+	grantClaims["ontology_id"] = testOntologyOrders
+	grantClaims["scope"] = "orders:settle"
+	grantClaims["resource"] = testResourceOrdersBatch
+	grantClaims["authorization_details"] = []string{"purpose:monthly-settlement"}
+	grantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), grantClaims)
+	bindingToken := signTestJWT(t, "agent-key-1", []byte("agent-secret"), testDefaultBindingClaims(now, IdentityGrantHash(grantToken)))
+
+	opts := testSessionIdentityOptions(now)
+	opts.Policy.SetMode = identitypolicy.SetModeExact
+	opts.Policy.Expected.IntentRef = testIntentOrdersSettle
+	opts.Policy.Expected.CapabilityRef = testCapabilitySettle
+	opts.Policy.Expected.OntologyID = testOntologyOrders
+	opts.Policy.Expected.Scopes = []string{"orders:settle"}
+	opts.Policy.Expected.Resources = []string{testResourceOrdersBatch}
+	opts.Policy.Expected.AuthorizationDetails = []string{"purpose:monthly-settlement"}
+
+	_, err := VerifySessionIdentityJWT(grantToken, bindingToken, opts)
+	if !errors.Is(err, identitypolicy.ErrMismatch) {
+		t.Fatalf("VerifySessionIdentityJWT() error = %v, want %v", err, identitypolicy.ErrMismatch)
+	}
+	var validationErrs identitypolicy.ValidationErrors
+	if !errors.As(err, &validationErrs) {
+		t.Fatalf("VerifySessionIdentityJWT() error = %T, want identitypolicy.ValidationErrors", err)
+	}
+	if !validationErrs.Has(identitypolicy.LayerL6, identitypolicy.FieldCapabilityRef, identitypolicy.ErrMismatch) {
+		t.Fatalf("VerifySessionIdentityJWT() errors do not include L6 capability_ref mismatch")
+	}
+}
+
+func TestVerifySessionIdentityJWTRejectsExtraSemanticAuthorizationScope(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	grantClaims := testDefaultGrantClaims(now)
+	grantClaims["intent_ref"] = testIntentOrdersSettle
+	grantClaims["capability_ref"] = testCapabilitySettle
+	grantClaims["ontology_id"] = testOntologyOrders
+	grantClaims["scope"] = "orders:settle orders:admin"
+	grantClaims["resource"] = testResourceOrdersBatch
+	grantClaims["authorization_details"] = []string{"purpose:monthly-settlement"}
+	grantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), grantClaims)
+	bindingToken := signTestJWT(t, "agent-key-1", []byte("agent-secret"), testDefaultBindingClaims(now, IdentityGrantHash(grantToken)))
+
+	opts := testSessionIdentityOptions(now)
+	opts.Policy.SetMode = identitypolicy.SetModeExact
+	opts.Policy.Expected.IntentRef = testIntentOrdersSettle
+	opts.Policy.Expected.CapabilityRef = testCapabilitySettle
+	opts.Policy.Expected.OntologyID = testOntologyOrders
+	opts.Policy.Expected.Scopes = []string{"orders:settle"}
+	opts.Policy.Expected.Resources = []string{testResourceOrdersBatch}
+	opts.Policy.Expected.AuthorizationDetails = []string{"purpose:monthly-settlement"}
+
+	_, err := VerifySessionIdentityJWT(grantToken, bindingToken, opts)
+	if !errors.Is(err, identitypolicy.ErrMismatch) {
+		t.Fatalf("VerifySessionIdentityJWT() error = %v, want %v", err, identitypolicy.ErrMismatch)
+	}
+	var validationErrs identitypolicy.ValidationErrors
+	if !errors.As(err, &validationErrs) {
+		t.Fatalf("VerifySessionIdentityJWT() error = %T, want identitypolicy.ValidationErrors", err)
+	}
+	if !validationErrs.Has(identitypolicy.LayerL6, identitypolicy.FieldScopes, identitypolicy.ErrMismatch) {
+		t.Fatalf("VerifySessionIdentityJWT() errors do not include L6 scopes mismatch")
 	}
 }
 
@@ -396,7 +516,7 @@ func TestVerifySessionIdentityJWTRejectsPeerSignedGrant(t *testing.T) {
 		"agtp_type":    TokenTypeIdentityGrant,
 		"agtp_version": ProfileVersion,
 		"cnf":          map[string]any{"kid": "agent-key-1"},
-		"service":      "payments",
+		"service":      testServicePayments,
 	})
 	bindingToken := signTestJWT(t, "agent-key-1", []byte("agent-secret"), jwt.MapClaims{
 		"iss":                    "agent-a",
@@ -467,7 +587,7 @@ func TestVerifySessionIdentityJWTRejectsWrongGrantHash(t *testing.T) {
 		"agtp_type":    TokenTypeIdentityGrant,
 		"agtp_version": ProfileVersion,
 		"cnf":          map[string]any{"kid": "agent-key-1"},
-		"service":      "payments",
+		"service":      testServicePayments,
 		"deployment":   "prod",
 		"task_id":      "task-1",
 		"scope":        "orders:read",
@@ -515,7 +635,7 @@ func TestVerifySessionIdentityJWTRejectsWrongGrantIssuerOrAudience(t *testing.T)
 				"agtp_type":    TokenTypeIdentityGrant,
 				"agtp_version": ProfileVersion,
 				"cnf":          map[string]any{"kid": "agent-key-1"},
-				"service":      "payments",
+				"service":      testServicePayments,
 				"deployment":   "prod",
 				"task_id":      "task-1",
 				"scope":        "orders:read",
@@ -588,6 +708,106 @@ func TestVerifySessionIdentityJWTRejectsUnauthorizedSessionBindingSigner(t *test
 	}
 }
 
+func TestVerifySessionIdentityJWTEnvelopeAcceptsManagerGrantAndLocalPolicy(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	grantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), testDefaultGrantClaims(now))
+	envelopeToken := signTestJWT(t, "agent-key-1", []byte("agent-secret"), testDefaultEnvelopeClaims(now, grantToken, IdentityGrantHash(grantToken)))
+
+	result, err := VerifySessionIdentityJWTEnvelope(envelopeToken, testSessionIdentityOptions(now))
+	if err != nil {
+		t.Fatalf("VerifySessionIdentityJWTEnvelope() error = %v", err)
+	}
+	if result.Grant.GrantHash != IdentityGrantHash(grantToken) {
+		t.Fatalf("result grant hash = %q, want inner grant hash", result.Grant.GrantHash)
+	}
+	if result.Assertion.Values.Service != testServicePayments {
+		t.Fatalf("result service = %q, want payments from inner Manager grant", result.Assertion.Values.Service)
+	}
+}
+
+func TestVerifySessionIdentityJWTEnvelopeRedTeamRejectsSubstitution(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	grantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), testDefaultGrantClaims(now))
+
+	tests := []struct {
+		name      string
+		envelope  func() string
+		want      error
+		wantError bool
+	}{
+		{
+			name: "inner grant substitution",
+			envelope: func() string {
+				substitutedGrantClaims := testDefaultGrantClaims(now)
+				substitutedGrantClaims["jti"] = "grant-2"
+				substitutedGrant := signTestJWT(t, "manager-key", []byte("manager-secret"), substitutedGrantClaims)
+				return signTestJWT(t, "agent-key-1", []byte("agent-secret"), testDefaultEnvelopeClaims(now, substitutedGrant, IdentityGrantHash(grantToken)))
+			},
+			want: identitypolicy.ErrMismatch,
+		},
+		{
+			name: "outer grant_hash mismatch",
+			envelope: func() string {
+				return signTestJWT(t, "agent-key-1", []byte("agent-secret"), testDefaultEnvelopeClaims(now, grantToken, "sha256:other-grant"))
+			},
+			want: identitypolicy.ErrMismatch,
+		},
+		{
+			name: "skipped inner signature verification",
+			envelope: func() string {
+				forgedGrant := signTestJWT(t, "agent-key-1", []byte("agent-secret"), testDefaultGrantClaims(now))
+				return signTestJWT(t, "agent-key-1", []byte("agent-secret"), testDefaultEnvelopeClaims(now, forgedGrant, IdentityGrantHash(forgedGrant)))
+			},
+			want: ErrMissingKeyID,
+		},
+		{
+			name: "skipped outer signature verification",
+			envelope: func() string {
+				envelope := signTestJWT(t, "agent-key-1", []byte("agent-secret"), testDefaultEnvelopeClaims(now, grantToken, IdentityGrantHash(grantToken)))
+				return corruptTestJWTSignature(t, envelope)
+			},
+			wantError: true,
+		},
+		{
+			name: "Agent-signed semantic claims ignored",
+			envelope: func() string {
+				analyticsGrantClaims := testDefaultGrantClaims(now)
+				analyticsGrantClaims["service"] = testServiceAnalytics
+				analyticsGrant := signTestJWT(t, "manager-key", []byte("manager-secret"), analyticsGrantClaims)
+				envelopeClaims := testDefaultEnvelopeClaims(now, analyticsGrant, IdentityGrantHash(analyticsGrant))
+				envelopeClaims["service"] = testServicePayments
+				envelopeClaims["scope"] = "orders:read"
+				return signTestJWT(t, "agent-key-1", []byte("agent-secret"), envelopeClaims)
+			},
+			want: identitypolicy.ErrMismatch,
+		},
+		{
+			name: "missing inner grant",
+			envelope: func() string {
+				envelopeClaims := testDefaultEnvelopeClaims(now, grantToken, IdentityGrantHash(grantToken))
+				delete(envelopeClaims, "identity_grant_jwt")
+				return signTestJWT(t, "agent-key-1", []byte("agent-secret"), envelopeClaims)
+			},
+			want: ErrMissingIdentityGrant,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := VerifySessionIdentityJWTEnvelope(tt.envelope(), testSessionIdentityOptions(now))
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("VerifySessionIdentityJWTEnvelope() error = nil, want failure")
+				}
+				return
+			}
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("VerifySessionIdentityJWTEnvelope() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestVerifySessionIdentityJWTRejectsReplay(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	grantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), testDefaultGrantClaims(now))
@@ -608,7 +828,7 @@ func TestVerifySessionIdentityJWTDoesNotConsumeReplayOnPolicyMismatch(t *testing
 	now := time.Unix(1_700_000_000, 0)
 	replay := newAGTPReplayCache()
 	wrongGrantClaims := testDefaultGrantClaims(now)
-	wrongGrantClaims["service"] = "analytics"
+	wrongGrantClaims["service"] = testServiceAnalytics
 	wrongGrantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), wrongGrantClaims)
 	wrongBindingToken := signTestJWT(t, "agent-key-1", []byte("agent-secret"), testDefaultBindingClaims(now, IdentityGrantHash(wrongGrantToken)))
 	opts := testSessionIdentityOptions(now)
@@ -811,7 +1031,7 @@ func testDefaultGrantClaims(now time.Time) jwt.MapClaims {
 		"agtp_type":    TokenTypeIdentityGrant,
 		"agtp_version": ProfileVersion,
 		"cnf":          map[string]any{"kid": "agent-key-1"},
-		"service":      "payments",
+		"service":      testServicePayments,
 		"deployment":   "prod",
 		"task_id":      "task-1",
 		"scope":        "orders:read",
@@ -832,6 +1052,31 @@ func testDefaultBindingClaims(now time.Time, grantHash string) jwt.MapClaims {
 		"request_context_sha256": "sha256:context",
 		"nonce":                  "nonce-1",
 	}
+}
+
+func testDefaultEnvelopeClaims(now time.Time, grantToken, grantHash string) jwt.MapClaims {
+	claims := testDefaultBindingClaims(now, grantHash)
+	claims["jti"] = "envelope-1"
+	claims["agtp_type"] = TokenTypeSessionEnvelope
+	claims["identity_grant_jwt"] = grantToken
+	return claims
+}
+
+func corruptTestJWTSignature(t *testing.T, tokenString string) string {
+	t.Helper()
+
+	index := strings.LastIndex(tokenString, ".")
+	if index < 0 || index == len(tokenString)-1 {
+		t.Fatalf("JWT does not contain a signature segment: %q", tokenString)
+	}
+	corrupted := []byte(tokenString)
+	switch corrupted[len(corrupted)-1] {
+	case 'A':
+		corrupted[len(corrupted)-1] = 'B'
+	default:
+		corrupted[len(corrupted)-1] = 'A'
+	}
+	return string(corrupted)
 }
 
 type agtpReplayCache struct {
@@ -867,7 +1112,7 @@ func testSessionIdentityOptions(now time.Time) SessionIdentityJWTOptions {
 		Policy: identitypolicy.Policy{
 			Require: identitypolicy.Requirements{L3: true, L4: true, L5: true, L6: true},
 			Expected: identitypolicy.Values{
-				Service:    "payments",
+				Service:    testServicePayments,
 				Deployment: "prod",
 				Agent:      "agent-a",
 				TaskID:     "task-1",

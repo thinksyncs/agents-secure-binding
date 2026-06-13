@@ -11,7 +11,7 @@ import (
 	"github.com/google/go-tdx-guest/proto/checkconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation"
 	"github.com/veraison/corim/comid"
 	"github.com/veraison/corim/corim"
 	"github.com/veraison/swid"

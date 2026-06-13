@@ -18,10 +18,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/thinksyncs/agtp-atls-profile/manager/qemu"
-	persistenceMocks "github.com/thinksyncs/agtp-atls-profile/manager/qemu/mocks"
-	"github.com/thinksyncs/agtp-atls-profile/manager/vm"
-	"github.com/thinksyncs/agtp-atls-profile/manager/vm/mocks"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/qemu"
+	persistenceMocks "github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/qemu/mocks"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/vm"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/vm/mocks"
 	"github.com/veraison/corim/corim"
 )
 

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation"
 )
 
 func TestIntUse(t *testing.T) {

@@ -1,12 +1,19 @@
-# AGTP aTLS Security-Profile Threat Model
+# Hardware-Aware TLS Identity-Binding Threat Model
 
-This document records the threat model for an aTLS-backed AGTP security profile.
-It is intended to guide implementation feedback and test vectors.
+This threat model covers a hardware-aware TLS 1.3 identity-binding profile.
+AGTP is one reference target, but the risks are not AGTP-specific. Terminology,
+layers, and verification order are defined in
+`docs/SSOT.md`.
+
+Hardware-aware TLS is not pre-TLS platform authentication. It is ordinary TLS
+1.3 plus post-handshake platform attestation bound to the accepted TLS session.
+The key question is whether the application fails closed before treating that
+TLS peer as an attested application peer.
 
 ## Assumptions
 
 - TLS 1.3 and exported-authenticator validation are implemented by the lower
-  aTLS layer.
+  layer.
 - Platform evidence appraisal is handled by the lower attestation verifier.
 - The Manager or policy-authority signing key is configured locally or through
   a trusted key source.
@@ -22,20 +29,31 @@ session or endpoint.
 
 Profile requirement:
 
-- bind profile objects to the accepted aTLS session;
+- bind profile objects to the accepted TLS session;
 - reject mismatched binding values;
 - reject reused binding identifiers or nonces.
 
 ## Diversion
 
-Diversion is an intended-subject failure. The accepted peer may be genuine, but
-it is not the intended service, tenant, deployment, or environment.
+Semantic diversion is an intended-subject failure family. The channel, session,
+token, or peer may be valid, but the action is bound to the wrong semantic
+target, context, delegation, capability, or authority boundary.
+
+Service / tenant diversion is the L3 subset. The accepted peer may be genuine,
+but it is not the intended service, tenant, deployment, or environment.
 
 Profile requirement:
 
 - carry deployment identity only in authenticated grants;
 - compare observed deployment identity with local expected policy;
 - fail closed on missing or mismatched required values.
+
+Static policy requirement:
+
+- distinguish client-visible and hidden diversion;
+- require reason codes and stable audit fields;
+- reject policy miss, denied diversion, unsupported policy versions, and hidden
+  diversion without an explicit hidden-diversion rule.
 
 ## Same-Machine Wrong-Agent
 
@@ -46,6 +64,8 @@ Profile requirement:
 
 - bind the intended agent or workload identity in the Identity Grant;
 - require a confirmation key authorized for that grant;
+- keep Manager or policy-authority signing keys separate from Agent
+  confirmation keys;
 - compare the observed agent identity with local expected policy.
 
 ## Replay
@@ -65,6 +85,8 @@ Profile requirement:
 Binding-parameter confusion occurs when a verifier uses peer-supplied values as
 expected local values. Examples include labels, contexts, grant ids,
 confirmation keys, expected agent ids, task ids, or authorization scopes.
+Semantic reference aliases are also in scope: a peer must not choose the
+verifier's expected `intentRef`, `capabilityRef`, or `ontologyId`.
 
 Profile requirement:
 
@@ -72,6 +94,8 @@ Profile requirement:
 - reject unexpected labels, contexts, token types, versions, and signing
   methods;
 - reject grants or binding statements that do not match local trust policy.
+- apply the canonical semantic-reference rules in
+  `docs/SSOT.md`.
 
 ## Downgrade and Policy Failure
 

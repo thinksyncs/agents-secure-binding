@@ -37,6 +37,8 @@ func NewSetNXReplayCache(ctx context.Context, store SetNXStore) *SetNXReplayCach
 
 // NewSetNXReplayCacheWithClock returns a SETNX replay cache using a
 // caller-supplied clock. It is primarily useful for deterministic tests.
+//
+//nolint:contextcheck // The cache intentionally stores the caller-owned context for store operations.
 func NewSetNXReplayCacheWithClock(ctx context.Context, store SetNXStore, now func() time.Time) *SetNXReplayCache {
 	if ctx == nil {
 		ctx = context.Background()

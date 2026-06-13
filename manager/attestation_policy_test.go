@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/thinksyncs/agtp-atls-profile/manager/qemu"
-	"github.com/thinksyncs/agtp-atls-profile/manager/vm"
-	"github.com/thinksyncs/agtp-atls-profile/manager/vm/mocks"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/qemu"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/vm"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/vm/mocks"
 	"github.com/veraison/corim/corim"
 )
 

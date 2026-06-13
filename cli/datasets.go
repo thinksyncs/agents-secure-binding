@@ -12,8 +12,8 @@ import (
 	"github.com/absmach/supermq/pkg/errors"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/thinksyncs/agtp-atls-profile/agent"
-	"github.com/thinksyncs/agtp-atls-profile/internal"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/internal"
 	"google.golang.org/grpc/metadata"
 )
 

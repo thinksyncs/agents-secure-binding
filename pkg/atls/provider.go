@@ -12,10 +12,10 @@ import (
 	"fmt"
 
 	"github.com/absmach/certs/sdk"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls/ea"
-	eaattestation "github.com/thinksyncs/agtp-atls-profile/pkg/atls/eaattestation"
-	cocosattestation "github.com/thinksyncs/agtp-atls-profile/pkg/attestation"
-	attestationclient "github.com/thinksyncs/agtp-atls-profile/pkg/clients/grpc/attestation"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/ea"
+	eaattestation "github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/eaattestation"
+	cocosattestation "github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation"
+	attestationclient "github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients/grpc/attestation"
 )
 
 // CertificateProvider is kept for compatibility with existing cocos call sites.

@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/agtp"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/atls/identitypolicy"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/clients"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/tls"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/agtp"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/atls/identitypolicy"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/tls"
 )
 
 func TestConfig_Configuration(t *testing.T) {

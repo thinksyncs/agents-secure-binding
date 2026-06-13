@@ -8,7 +8,7 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/thinksyncs/agtp-atls-profile/agent/events"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/events"
 )
 
 var (

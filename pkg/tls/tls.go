@@ -10,7 +10,7 @@ import (
 	"os"
 
 	"github.com/absmach/supermq/pkg/errors"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation"
 )
 
 // Security represents the type of TLS security configuration.

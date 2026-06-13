@@ -6,7 +6,7 @@ package eat
 import (
 	"errors"
 
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation"
 )
 
 // EATClaims represents the Entity Attestation Token claims following RFC 9711.

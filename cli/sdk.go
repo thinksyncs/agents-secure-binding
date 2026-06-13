@@ -6,13 +6,13 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"github.com/thinksyncs/agtp-atls-profile/manager"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/attestation/cmdconfig"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/clients"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/clients/grpc"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/clients/grpc/agent"
-	managergrpc "github.com/thinksyncs/agtp-atls-profile/pkg/clients/grpc/manager"
-	"github.com/thinksyncs/agtp-atls-profile/pkg/sdk"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation/cmdconfig"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients/grpc"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients/grpc/agent"
+	managergrpc "github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/clients/grpc/manager"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/sdk"
 )
 
 var Verbose bool

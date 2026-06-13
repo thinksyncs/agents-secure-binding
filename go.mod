@@ -1,4 +1,4 @@
-module github.com/thinksyncs/agtp-atls-profile
+module github.com/thinksyncs/hardware-aware-tls-identity-binding
 
 go 1.26.0
 

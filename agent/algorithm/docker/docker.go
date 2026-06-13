@@ -15,9 +15,9 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
-	"github.com/thinksyncs/agtp-atls-profile/agent/algorithm"
-	"github.com/thinksyncs/agtp-atls-profile/agent/algorithm/logging"
-	"github.com/thinksyncs/agtp-atls-profile/agent/events"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/algorithm"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/algorithm/logging"
+	"github.com/thinksyncs/hardware-aware-tls-identity-binding/agent/events"
 )
 
 const (
