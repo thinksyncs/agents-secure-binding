@@ -479,22 +479,19 @@ Negative-test anchor
 SP-01 & Is identity material bound to the accepted TLS and attestation
 session? & Verify the Session Binding Statement against the
 request/exporter context, grant hash, audience, nonce, endpoint-key
-confirmation, attestation binder when present, and replay state. &
-\texttt{hwtls-id-profile-relay-001}; attestation-binder mismatch \\
+confirmation, attestation binder when present, and replay state. & relay;
+binder mismatch \\
 SP-02 & Which values are local policy and which are peer claims? &
 Compare service, tenant, deployment, agent, task, scope, resource, and
-authorization values against local expected policy. &
-\texttt{hwtls-id-profile-diversion-001};
-\texttt{hwtls-id-profile-wrong-agent-001};
-\texttt{hwtls-id-profile-binding-confusion-001} \\
+authorization values against local expected policy. & diversion;
+wrong-Agent; binding confusion \\
 SP-03 & Which freshness values are one-shot? & Reject repeated Session
 Binding Statement IDs, nonces, or task-binding values when one-shot use
-is required. & \texttt{hwtls-id-profile-replay-001} \\
+is required. & replay \\
 SP-04 & What happens when grant or binding material is missing,
 unsupported, substituted, or partly verified? & Required mode fails
 closed. Neither Identity Grant nor Session Binding Statement is
-sufficient alone. & \texttt{hwtls-id-profile-downgrade-001};
-nested-token substitution \\
+sufficient alone. & downgrade; nested-token substitution \\
 SP-05 & Which responses are safe for shared caching? & Treat
 caller-dependent responses as \texttt{private} with adequate
 partitioning or \texttt{no-store}. Do not cache security inputs or
@@ -1879,9 +1876,9 @@ statement. & freshness \\
 \texttt{cnf.kid} & Agent confirmation key ID & Name the key allowed to
 sign the Session Binding Statement for this grant. & L4 / L2
 prerequisite \\
-\texttt{authorized\_endpoint\_keys} & optional endpoint key IDs & Allow
-explicitly named endpoint keys when the deployment uses that binding
-model. & L4 / L2 prerequisite \\
+endpoint keys & optional endpoint key IDs & Claim:
+\texttt{authorized\_endpoint\_keys}. Allow explicitly named endpoint keys
+when the deployment uses that binding model. & L4 / L2 prerequisite \\
 \texttt{service} & application service name or ID & Bind the grant to
 the intended service. & L3 \\
 \texttt{tenant} & tenant or account ID & Bind the grant to the intended

@@ -203,10 +203,10 @@ accepting the peer.
 
 | Review item | Question | Profile requirement | Negative-test anchor |
 | --- | --- | --- | --- |
-| SP-01 | Is identity material bound to the accepted TLS and attestation session? | Verify the Session Binding Statement against the request/exporter context, grant hash, audience, nonce, endpoint-key confirmation, attestation binder when present, and replay state. | `hwtls-id-profile-relay-001`; attestation-binder mismatch |
-| SP-02 | Which values are local policy and which are peer claims? | Compare service, tenant, deployment, agent, task, scope, resource, and authorization values against local expected policy. | `hwtls-id-profile-diversion-001`; `hwtls-id-profile-wrong-agent-001`; `hwtls-id-profile-binding-confusion-001` |
-| SP-03 | Which freshness values are one-shot? | Reject repeated Session Binding Statement IDs, nonces, or task-binding values when one-shot use is required. | `hwtls-id-profile-replay-001` |
-| SP-04 | What happens when grant or binding material is missing, unsupported, substituted, or partly verified? | Required mode fails closed. Neither Identity Grant nor Session Binding Statement is sufficient alone. | `hwtls-id-profile-downgrade-001`; nested-token substitution |
+| SP-01 | Is identity material bound to the accepted TLS and attestation session? | Verify the Session Binding Statement against the request/exporter context, grant hash, audience, nonce, endpoint-key confirmation, attestation binder when present, and replay state. | relay; binder mismatch |
+| SP-02 | Which values are local policy and which are peer claims? | Compare service, tenant, deployment, agent, task, scope, resource, and authorization values against local expected policy. | diversion; wrong-Agent; binding confusion |
+| SP-03 | Which freshness values are one-shot? | Reject repeated Session Binding Statement IDs, nonces, or task-binding values when one-shot use is required. | replay |
+| SP-04 | What happens when grant or binding material is missing, unsupported, substituted, or partly verified? | Required mode fails closed. Neither Identity Grant nor Session Binding Statement is sufficient alone. | downgrade; nested-token substitution |
 | SP-05 | Which responses are safe for shared caching? | Treat caller-dependent responses as `private` with adequate partitioning or `no-store`. Do not cache security inputs or verification results as acceptance evidence. | caller-dependent cache leak |
 | SP-06 | Are semantic references canonical? | Reject non-canonical, ambiguous, fuzzy-matched, or receiver-repaired decision values. | semantic alias confusion |
 | SP-07 | Are Manager and Agent keys separated? | Reject Manager keys used as Agent confirmation keys and Agent keys used as Manager signing keys. | key-role confusion |
@@ -1127,7 +1127,7 @@ Identity Grant JWT and are accepted only after local policy comparison.
 | `iat` | issued-at time | Detect future-issued or malformed grants and support freshness decisions. | freshness |
 | `exp` | expiration time | Bound the lifetime of the authority statement. | freshness |
 | `cnf.kid` | Agent confirmation key ID | Name the key allowed to sign the Session Binding Statement for this grant. | L4 / L2 prerequisite |
-| `authorized_endpoint_keys` | optional endpoint key IDs | Allow explicitly named endpoint keys when the deployment uses that binding model. | L4 / L2 prerequisite |
+| endpoint keys | optional endpoint key IDs | Claim: `authorized_endpoint_keys`. Allow explicitly named endpoint keys when the deployment uses that binding model. | L4 / L2 prerequisite |
 | `service` | application service name or ID | Bind the grant to the intended service. | L3 |
 | `tenant` | tenant or account ID | Bind the grant to the intended tenant. | L3 |
 | `deployment` | deployment, region, cluster, or environment slice | Bind the grant to the intended deployment target. | L3 |
