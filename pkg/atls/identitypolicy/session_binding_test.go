@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+const testManagerKeyID = "manager-key-1"
+
 func TestNewAssertionFromSessionBindingAcceptsGrantConfirmationKey(t *testing.T) {
 	now := time.Now()
 	grant := testVerifiedGrant(now)
@@ -70,10 +72,10 @@ func TestNewAssertionFromSessionBindingRejectsArbitraryEndpointKey(t *testing.T)
 func TestNewAssertionFromSessionBindingRejectsIssuerKeyAsBindingKey(t *testing.T) {
 	now := time.Now()
 	grant := testVerifiedGrant(now)
-	grant.IssuerKey = "manager-key-1"
-	grant.ConfirmationKey = "manager-key-1"
+	grant.IssuerKey = testManagerKeyID
+	grant.ConfirmationKey = testManagerKeyID
 	statement := testSessionBindingStatement(now)
-	statement.SignerKey = "manager-key-1"
+	statement.SignerKey = testManagerKeyID
 
 	_, err := NewAssertionFromSessionBinding(grant, statement, now)
 	if !errors.Is(err, ErrUnauthorizedBindingKey) {
