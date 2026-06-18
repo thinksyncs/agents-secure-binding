@@ -146,6 +146,29 @@ func TestNewAssertionFromSessionBindingWithOptionsRejectsReplay(t *testing.T) {
 	}
 }
 
+func TestNewAssertionFromSessionBindingReplayKeyIncludesContext(t *testing.T) {
+	now := time.Now()
+	grant := testVerifiedGrant(now)
+	statement := testSessionBindingStatement(now)
+	cache := newTestReplayCache()
+	opts := SessionBindingOptions{Now: now, ReplayCache: cache}
+
+	if _, err := NewAssertionFromSessionBindingWithOptions(grant, statement, opts); err != nil {
+		t.Fatalf("NewAssertionFromSessionBindingWithOptions() error = %v", err)
+	}
+	want := statement.GrantHash + "\x00" +
+		statement.Audience + "\x00" +
+		statement.Binding.TLSExporterSHA256 + "\x00" +
+		statement.Binding.RequestContextSHA256 + "\x00" +
+		statement.Binding.Nonce
+	if len(cache.keys) != 1 {
+		t.Fatalf("replay cache keys = %d, want 1", len(cache.keys))
+	}
+	if cache.keys[0] != want {
+		t.Fatalf("replay cache key = %q, want %q", cache.keys[0], want)
+	}
+}
+
 func TestNewAssertionFromSessionBindingRejectsGrantHashMismatch(t *testing.T) {
 	now := time.Now()
 	grant := testVerifiedGrant(now)
@@ -160,6 +183,7 @@ func TestNewAssertionFromSessionBindingRejectsGrantHashMismatch(t *testing.T) {
 
 type testReplayCache struct {
 	seen map[string]time.Time
+	keys []string
 }
 
 func newTestReplayCache() *testReplayCache {
@@ -171,6 +195,7 @@ func (c *testReplayCache) MarkUsed(key string, expiresAt time.Time) error {
 		return ErrReplayDetected
 	}
 	c.seen[key] = expiresAt
+	c.keys = append(c.keys, key)
 	return nil
 }
 
@@ -195,6 +220,12 @@ func TestNewAssertionFromSessionBindingRejectsMissingRequiredBindingFields(t *te
 			name: "leaf public key hash",
 			mutate: func(statement *VerifiedSessionBindingStatement) {
 				statement.Binding.LeafPublicKeySHA256 = ""
+			},
+		},
+		{
+			name: "tls exporter hash",
+			mutate: func(statement *VerifiedSessionBindingStatement) {
+				statement.Binding.TLSExporterSHA256 = ""
 			},
 		},
 		{
@@ -312,6 +343,7 @@ func testSessionBindingStatement(now time.Time) VerifiedSessionBindingStatement 
 		SignerKey: "agent-confirmation-key",
 		Binding: Binding{
 			LeafPublicKeySHA256:     "sha256:leaf",
+			TLSExporterSHA256:       "sha256:exporter",
 			RequestContextSHA256:    "sha256:context",
 			AttestationBinderSHA256: "sha256:binder",
 			Nonce:                   "binding-nonce",
