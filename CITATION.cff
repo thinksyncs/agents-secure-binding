@@ -7,8 +7,8 @@ authors:
     given-names: "Akira"
 version: "0.3"
 date-released: "2026-06-19"
-repository-code: "https://github.com/thinksyncs/hardware-aware-tls-identity-binding"
-url: "https://github.com/thinksyncs/hardware-aware-tls-identity-binding/releases/tag/v0.3"
+repository-code: "https://github.com/thinksyncs/session-bound-agent-identity"
+url: "https://github.com/thinksyncs/session-bound-agent-identity/releases/tag/v0.3"
 license: "Apache-2.0"
 abstract: >
   A security-hardening profile and Go implementation helpers for binding
