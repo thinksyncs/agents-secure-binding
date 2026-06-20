@@ -56,15 +56,15 @@ All three packages passed.
 
 | Claim or attack class | Current evidence | Remaining evaluation |
 | --- | --- | --- |
-| Real network relay attack | Real TLS exporter binding is exercised in an in-memory TLS 1.3 harness, and borrowed binding values are rejected. | LRTT10: run two live endpoints and an active relay that forwards or swaps grants, bindings, exporter contexts, and request contexts. |
+| Real network relay attack | Real TLS exporter binding is exercised in an in-memory TLS 1.3 harness. `TestVerifySessionIdentityJWTLiveRedTeamRejectsNetworkRelayAcrossEndpoints` runs two live loopback TLS endpoints and rejects a binding relayed from endpoint A to endpoint B. | Extend LRTT12 with an active forwarding proxy and deployment-specific TLS exporter material when the runtime server profile exists. |
 | Borrowed attestation | Binder mismatch, missing binder, report-data mismatch, and nonce mismatch are covered in local tests. | LRTT11: generate hardware-backed evidence in a confidential-VM or equivalent environment and replay it across another session. |
 | Token substitution and cross-JWT confusion | Covered by grant substitution and single-envelope JWT substitution tests. | Keep as regression coverage; add malformed serialization cases under fuzzing. |
-| Same TLS connection with multiple tasks | SSOT requires distinct canonical contexts and nonces for distinct authentication instances. | LRTT12: run multiple tasks over one TLS connection and prove that task A's binding does not authorize task B. |
-| HTTP/2 or gRPC connection reuse | SSOT requires context separation for multiplexing and pooling. | LRTT13: exercise HTTP/2 and gRPC clients that reuse connections across tasks, Agents, or authority scopes. |
+| Same TLS connection with multiple tasks | `TestVerifySessionIdentityJWTLiveRedTeamHTTP2ConnectionReuse` runs task A and task B over one reused HTTP/2 TLS connection and rejects task A's binding in task B's request context. | Add gRPC service-level coverage when a profile-bearing gRPC API is fixed. |
+| HTTP/2 or gRPC connection reuse | The HTTP/2 harness verifies connection reuse, accepted same-context bindings, and rejected cross-context bindings. | Add gRPC connection-pooling coverage and cross-Agent / cross-authority-scope cases. |
 | TLS resumption and 0-RTT | SSOT says prior statements and binders are not acceptance evidence, and 0-RTT is not profile-authenticated. | LRTT14: test resumed sessions and 0-RTT attempts against the acceptance gate. |
 | Distributed replay race | Local goroutine race and local multi-process SETNX-style service are covered. | LRTT03b: repeat against real multi-node Redis or Valkey, including failover and timeout behavior. |
-| Gateway route confusion | SSOT defines gateway route-assertion requirements. | LRTT15: implement a gateway-routed harness and test wrong route, stale route assertion, tenant mix-up, and missing Agent holder-of-key proof. |
-| JWT/JWS parser robustness | Deterministic negative tests cover supported claim and signature paths. | LRTT16: fuzz claims, Unicode, duplicate JSON keys, malformed base64url, malformed protected headers, and malformed JWS structure. |
+| Gateway route confusion | SSOT defines gateway route-assertion requirements, and `docs/gateway-routed-profile.md` now fixes the Gateway Route Assertion claim map. | LRTT15: implement a gateway-routed harness and test wrong route, stale route assertion, tenant mix-up, and missing Agent holder-of-key proof. |
+| JWT/JWS parser robustness | Deterministic negative tests cover supported claim and signature paths. `TestVerifySessionIdentityJWTRedTeamRejectsMalformedCorpus` rejects malformed compact JWS, duplicate protected-header or payload JSON members, and unsafe control-character claims. | Add Go fuzz targets and long-running corpus jobs for Unicode, duplicate JSON keys, malformed base64url, malformed protected headers, and malformed JWS structure. |
 | Grant, binding, session, and expected-policy invariants | Invariants are described in SSOT and enforced by targeted tests. | LRTT17: build a small model or property test that states the acceptance invariant independently of the implementation. |
 
 ## Implemented Coverage
@@ -91,6 +91,10 @@ All three packages passed.
 | `TestVerifySessionIdentityCWTRedTeamRejectsCOSEProfileAttacks` | CWT/COSE rejects forged grants, tampered grant signatures, wrong binding signers, grant substitution, stale bindings, local-policy mismatch, and unprotected `kid`. | Passed locally and in GitHub Actions |
 | `TestValidateResponseCachePolicyRedTeamRejectsCallerDependentPublicCache` | Caller-dependent endpoint declared `public` is rejected; the harness shows the cross-Agent collision that a method/path/input-only shared cache would create. | Passed locally |
 | `TestValidateResponseCachePolicyRedTeamPartitionsPrivateCache` | Caller-dependent endpoint declared `private` with `Agent-ID` and `Authority-Scope` partitioning does not leak an admin-scoped cached response to a read-only Agent. | Passed locally |
+| `TestVerifySessionIdentityJWTLiveRedTeamRejectsNetworkRelayAcrossEndpoints` | Two live loopback TLS endpoints accept their own bindings and reject a binding relayed from endpoint A to endpoint B. | Passed locally |
+| `TestVerifySessionIdentityJWTLiveRedTeamHTTP2ConnectionReuse` | One HTTP/2 TLS connection carries task A and task B requests; task A's binding is rejected in task B's request context, while task B's own binding is accepted. | Passed locally |
+| `TestVerifySessionIdentityJWTRedTeamRejectsMalformedCorpus` | JWT/JWS rejects malformed compact serialization, duplicate protected-header or payload JSON members, and unsafe control-character semantic claims. | Passed locally |
+| `TestVerifySessionIdentityCWTRedTeamRejectsMalformedCorpus` | CWT/COSE rejects empty, truncated, malformed CBOR, and non-COSE binding bytes. | Passed locally |
 
 ## LRTT Status
 
@@ -107,11 +111,12 @@ All three packages passed.
 | LRTT09 | Completed locally | `TestValidateResponseCachePolicyRedTeamRejectsCallerDependentPublicCache`; `TestValidateResponseCachePolicyRedTeamPartitionsPrivateCache` | This is a dependency-free policy and cache-key harness, not a live AGTP daemon response-cache implementation |
 | LRTT10 | Not implemented | Tracked from the evaluation matrix | Real network relay with live endpoints and an active relay |
 | LRTT11 | Not implemented | Tracked from the evaluation matrix | Hardware-generated borrowed attestation replay |
-| LRTT12 | Not implemented | Tracked from the evaluation matrix | Multiple task bindings on one TLS connection |
-| LRTT13 | Not implemented | Tracked from the evaluation matrix | HTTP/2 and gRPC connection reuse |
+| LRTT12 | Completed for the dependency-free loopback harness | `TestVerifySessionIdentityJWTLiveRedTeamRejectsNetworkRelayAcrossEndpoints` | Uses two live local TLS endpoints and relayed profile material; it is not a full malicious forwarding proxy |
+| LRTT13 | Completed for HTTP/2 | `TestVerifySessionIdentityJWTLiveRedTeamHTTP2ConnectionReuse` | gRPC connection-pooling coverage remains future work |
 | LRTT14 | Not implemented | Tracked from the evaluation matrix | TLS resumption and 0-RTT behavior |
+| LRTT15a | Completed for profile text | `docs/gateway-routed-profile.md` fixes the Gateway Route Assertion claim set, signer, audience, expiry, replay key, canonicalization, and final-Agent relationship | Gateway route-confusion runtime harness remains LRTT15 |
 | LRTT15 | Not implemented | Tracked from the evaluation matrix | Gateway route-confusion end-to-end coverage |
-| LRTT16 | Not implemented | Tracked from the evaluation matrix | JWT/JWS parser and claim fuzzing |
+| LRTT16 | Completed for deterministic corpus tests | `TestVerifySessionIdentityJWTRedTeamRejectsMalformedCorpus`; `TestVerifySessionIdentityCWTRedTeamRejectsMalformedCorpus` | Long-running Go fuzz jobs remain future work |
 | LRTT17 | Not implemented | Tracked from the evaluation matrix | Formal-ish or property-based invariant model |
 
 ## Completed Changes
@@ -124,6 +129,10 @@ All three packages passed.
   COSE profile red-team tests.
 - Added local multi-process replay-race coverage through a shared SETNX-style
   replay service.
+- Added local loopback relay and HTTP/2 connection-reuse live red-team
+  harnesses for session-bound JWT/JWS identity.
+- Added deterministic JWT/JWS and CWT/COSE malformed-token corpus tests.
+- Fixed the Gateway Route Assertion claim map in the gateway-routed profile.
 - Added key and revocation failure-mode coverage for stale JWKS, timeouts,
   HTTP 500, key rotation overlap, disabled keys, and revoked grant IDs.
 - Added response-cache policy coverage for caller-dependent shared-cache
@@ -141,5 +150,10 @@ boundaries that need separate work if the project chooses to support them.
   wired for the JWT/JWS runtime path.
 - Replay race coverage uses a local HTTP SETNX-style service, not a real
   multi-node Redis or Valkey deployment.
-- Gateway-routed deployments now have SSOT route-assertion requirements, but
-  runtime client wiring and live LRTT08 coverage are still not implemented.
+- Gateway-routed deployments now have a fixed route-assertion claim map, but
+  runtime client wiring and live route-confusion coverage are still not
+  implemented.
+- HTTP/2 connection reuse is covered locally; gRPC connection-pooling coverage
+  remains separate work.
+- JWT/JWS and CWT/COSE malformed corpus tests are deterministic local tests,
+  not long-running fuzz jobs.

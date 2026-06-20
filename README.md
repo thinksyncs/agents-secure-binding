@@ -134,6 +134,8 @@ model.
   endpoints near identity-binding decisions
 - `docs/gateway-routed-profile.md`: non-core gateway route-assertion sketch for
   future gateway-routed deployments
+- `docs/ai2ai-security-profile.md`: A2A/AGTP mapping, wallet boundary, and
+  Security Binding Object carrier rules
 - `docs/agtp-security-profile-mapping.md`: profile validation state machine and
   error mapping
 - `docs/agtp-security-profile-feedback.md`: high-priority AGTP security-profile

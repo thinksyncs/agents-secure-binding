@@ -136,6 +136,48 @@ func TestVerifySessionIdentityCWTRedTeamRejectsCOSEProfileAttacks(t *testing.T) 
 	})
 }
 
+func TestVerifySessionIdentityCWTRedTeamRejectsMalformedCorpus(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	keys := newTestCWTKeySet(t)
+	validGrant := signTestCWT(t, "manager-key", keys.manager, testDefaultCWTGrantClaims(now))
+	validBinding := signTestCWT(t, "agent-key-1", keys.agent, testDefaultCWTBindingClaims(now, IdentityGrantCWTHash(validGrant)))
+
+	tests := []struct {
+		name    string
+		grant   []byte
+		binding []byte
+	}{
+		{
+			name:    "empty grant bytes",
+			grant:   nil,
+			binding: validBinding,
+		},
+		{
+			name:    "truncated grant COSE",
+			grant:   validGrant[:len(validGrant)/2],
+			binding: validBinding,
+		},
+		{
+			name:    "malformed binding CBOR",
+			grant:   validGrant,
+			binding: []byte{0xa1, 0x01},
+		},
+		{
+			name:    "non-COSE binding bytes",
+			grant:   validGrant,
+			binding: []byte("not a cose sign1 message"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := VerifySessionIdentityCWT(tt.grant, tt.binding, testSessionIdentityCWTOptions(now, keys)); err == nil {
+				t.Fatal("VerifySessionIdentityCWT() error = nil, want malformed CWT/COSE rejection")
+			}
+		})
+	}
+}
+
 type testCWTKeySet struct {
 	manager    *ecdsa.PrivateKey
 	agent      *ecdsa.PrivateKey
