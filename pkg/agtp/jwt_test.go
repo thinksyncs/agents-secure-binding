@@ -1021,6 +1021,138 @@ func TestVerifySessionIdentityJWTRedTeamRejectsMalformedCorpus(t *testing.T) {
 	}
 }
 
+func TestVerifySessionIdentityJWTInvariantMatrix(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	newGrant := func() string {
+		return signTestJWT(t, "manager-key", []byte("manager-secret"), testDefaultGrantClaims(now))
+	}
+	newBinding := func(grantToken string) jwt.MapClaims {
+		claims := testDefaultBindingClaims(now, IdentityGrantHash(grantToken))
+		claims["attestation_binder_sha256"] = "sha256:attestation"
+		return claims
+	}
+	newOptions := func() SessionIdentityJWTOptions {
+		opts := testSessionIdentityOptions(now)
+		opts.ExpectedBinding.AttestationBinderSHA256 = "sha256:attestation"
+		return opts
+	}
+
+	t.Run("baseline accepts", func(t *testing.T) {
+		grantToken := newGrant()
+		bindingToken := signTestJWT(t, "agent-key-1", []byte("agent-secret"), newBinding(grantToken))
+		if _, err := VerifySessionIdentityJWT(grantToken, bindingToken, newOptions()); err != nil {
+			t.Fatalf("VerifySessionIdentityJWT() error = %v", err)
+		}
+	})
+
+	tests := []struct {
+		name    string
+		mutate  func(grantToken string, bindingClaims jwt.MapClaims, opts *SessionIdentityJWTOptions) string
+		wantErr error
+	}{
+		{
+			name: "grant hash mismatch",
+			mutate: func(grantToken string, bindingClaims jwt.MapClaims, _ *SessionIdentityJWTOptions) string {
+				otherClaims := testDefaultGrantClaims(now)
+				otherClaims["jti"] = "grant-other"
+				otherGrant := signTestJWT(t, "manager-key", []byte("manager-secret"), otherClaims)
+				bindingClaims["grant_hash"] = IdentityGrantHash(otherGrant)
+				return grantToken
+			},
+			wantErr: identitypolicy.ErrMismatch,
+		},
+		{
+			name: "request context mismatch",
+			mutate: func(grantToken string, bindingClaims jwt.MapClaims, _ *SessionIdentityJWTOptions) string {
+				bindingClaims["request_context_sha256"] = "sha256:other-context"
+				return grantToken
+			},
+			wantErr: identitypolicy.ErrMismatch,
+		},
+		{
+			name: "tls exporter mismatch",
+			mutate: func(grantToken string, bindingClaims jwt.MapClaims, _ *SessionIdentityJWTOptions) string {
+				bindingClaims["tls_exporter_sha256"] = "sha256:other-exporter"
+				return grantToken
+			},
+			wantErr: identitypolicy.ErrMismatch,
+		},
+		{
+			name: "attestation binder mismatch",
+			mutate: func(grantToken string, bindingClaims jwt.MapClaims, _ *SessionIdentityJWTOptions) string {
+				bindingClaims["attestation_binder_sha256"] = "sha256:other-attestation"
+				return grantToken
+			},
+			wantErr: identitypolicy.ErrMismatch,
+		},
+		{
+			name: "audience mismatch",
+			mutate: func(grantToken string, bindingClaims jwt.MapClaims, _ *SessionIdentityJWTOptions) string {
+				bindingClaims["aud"] = "other-client"
+				return grantToken
+			},
+		},
+		{
+			name: "role-separated context mismatch",
+			mutate: func(grantToken string, bindingClaims jwt.MapClaims, _ *SessionIdentityJWTOptions) string {
+				bindingClaims["request_context_sha256"] = "sha256:initiator-context"
+				return grantToken
+			},
+			wantErr: identitypolicy.ErrMismatch,
+		},
+		{
+			name: "task policy mismatch",
+			mutate: func(_ string, bindingClaims jwt.MapClaims, _ *SessionIdentityJWTOptions) string {
+				claims := testDefaultGrantClaims(now)
+				claims["task_id"] = "task-2"
+				grantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), claims)
+				bindingClaims["grant_hash"] = IdentityGrantHash(grantToken)
+				return grantToken
+			},
+			wantErr: identitypolicy.ErrMismatch,
+		},
+		{
+			name: "local policy mismatch",
+			mutate: func(grantToken string, _ jwt.MapClaims, opts *SessionIdentityJWTOptions) string {
+				opts.Policy.Expected.Service = testServiceAnalytics
+				return grantToken
+			},
+			wantErr: identitypolicy.ErrMismatch,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			grantToken := newGrant()
+			bindingClaims := newBinding(grantToken)
+			opts := newOptions()
+			grantToken = tt.mutate(grantToken, bindingClaims, &opts)
+			bindingToken := signTestJWT(t, "agent-key-1", []byte("agent-secret"), bindingClaims)
+
+			_, err := VerifySessionIdentityJWT(grantToken, bindingToken, opts)
+			if tt.wantErr != nil && !errors.Is(err, tt.wantErr) {
+				t.Fatalf("VerifySessionIdentityJWT() error = %v, want %v", err, tt.wantErr)
+			}
+			if tt.wantErr == nil && err == nil {
+				t.Fatal("VerifySessionIdentityJWT() error = nil, want invariant rejection")
+			}
+		})
+	}
+
+	t.Run("replay mismatch", func(t *testing.T) {
+		grantToken := newGrant()
+		bindingToken := signTestJWT(t, "agent-key-1", []byte("agent-secret"), newBinding(grantToken))
+		opts := newOptions()
+		if _, err := VerifySessionIdentityJWT(grantToken, bindingToken, opts); err != nil {
+			t.Fatalf("VerifySessionIdentityJWT() first error = %v", err)
+		}
+		_, err := VerifySessionIdentityJWT(grantToken, bindingToken, opts)
+		if !errors.Is(err, identitypolicy.ErrReplayDetected) {
+			t.Fatalf("VerifySessionIdentityJWT() replay error = %v, want %v", err, identitypolicy.ErrReplayDetected)
+		}
+	})
+}
+
 func TestVerifySessionIdentityJWTRejectsMissingReplayCache(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	grantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), testDefaultGrantClaims(now))

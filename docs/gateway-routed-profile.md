@@ -75,6 +75,46 @@ thumbprint, and the verifier rejects the route if the proof is absent, expired,
 replayed, signed by the wrong key, or not tied to the same `grant_hash`, route,
 tenant partition, and request context.
 
+## Gateway-to-Agent Holder-of-Key Proof
+
+The gateway-to-Agent holder-of-key proof is a final-Agent proof, not a gateway
+proof. It shows that the routed request reached a workload that controls the
+expected final Agent key or workload identity.
+
+The proof is REQUIRED when the relying party needs final-Agent process identity
+and local policy does not explicitly trust the gateway as the final-Agent
+delegation authority. The proof MAY be omitted only when local policy treats
+the gateway itself as the authority for the final Agent process and accepts the
+gateway route assertion as the final route decision.
+
+When required, the proof signer is one of:
+
+- the Agent confirmation key named by the verified Identity Grant;
+- a final-Agent key whose thumbprint is named by
+  `target_agent_key_thumbprint`;
+- a workload identity key, such as mTLS, SPIFFE/SPIRE, or service-mesh identity,
+  when local policy maps that workload identity to `target_agent`.
+
+The proof binds at least:
+
+| Proof field | Meaning |
+| --- | --- |
+| `target_agent` | Canonical final Agent ID from the route assertion. |
+| `target_workload` | Canonical final workload identity when present. |
+| `target_agent_key_thumbprint` | Key or workload-identity thumbprint proving final-Agent control. |
+| `grant_hash` | Same exact grant hash carried by the route assertion. |
+| `route_id` | Same canonical route ID carried by the route assertion. |
+| `task_id` / `context_id` | Same task or context identifiers when present. |
+| `nonce` | Same one-shot route assertion nonce or a proof nonce explicitly bound to it. |
+| `iat` / `exp` | Freshness window no longer than the route assertion lifetime. |
+
+The gateway route assertion carries `agent_hok_proof_sha256`, the SHA-256 hash
+of the exact signed proof bytes or of a canonical proof transcript. A verifier
+rejects if the hash is missing, the proof cannot be resolved, the proof is
+expired, the proof signer is not authorized for the final Agent, the proof
+does not bind the same route values, or replay state is unavailable when the
+deployment requires one-shot route acceptance.
+
 ## Replay and Partitioning
 
 Gateway replay handling is separate from direct-Agent Session Binding Statement
