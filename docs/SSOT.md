@@ -1,6 +1,6 @@
 # Session-Bound Agent Identity Profile
 
-Draft v0.3
+Draft v0.4-dev
 
 ## Abstract
 
@@ -336,10 +336,9 @@ session, the field is absent unless deployment policy requires it.
 
 ## 11. L2 Binding Construction
 
-This section fixes the byte-level L2 binding construction for the v0.3
-direct-Agent profile. A verifier MUST NOT replace these inputs with
-peer-selected labels, inferred context, display names, or reserialized semantic
-metadata.
+This section fixes the byte-level L2 binding construction for the direct-Agent
+profile. A verifier MUST NOT replace these inputs with peer-selected labels,
+inferred context, display names, or reserialized semantic metadata.
 
 > Related references: RFC 8446 for TLS 1.3 exporter behavior, RFC 9261 for
 > exported authenticators, RFC 9266 for `tls-exporter` channel binding, RFC
@@ -401,9 +400,9 @@ attestation_binder_sha256 = SHA-256(attestation_binding)
 ```
 
 `tls_exporter_sha256` is a mandatory Session Binding Statement field in the
-v0.3 direct-Agent profile. It binds the statement to the current TLS exporter
-secret without exposing the exporter value itself. `request_context_sha256` is
-also mandatory and binds the statement to role, protocol, audience, grant, task,
+direct-Agent profile. It binds the statement to the current TLS exporter secret
+without exposing the exporter value itself. `request_context_sha256` is also
+mandatory and binds the statement to role, protocol, audience, grant, task,
 delegation, capability, tenant, and freshness context.
 
 `attestation_binder_sha256` is the Session Binding Statement's compact
@@ -473,9 +472,9 @@ Reuse rules:
 - QUIC/TLS 1.3 is not automatically equivalent to this direct TLS profile; a
   QUIC profile MUST define its exporter API, context bytes, endpoint-key
   binding, replay rules, and gateway behavior explicitly;
-- gateway-terminated deployments bind the client-to-gateway TLS endpoint only
-  with this construction. They do not prove the final Agent process in the v0.3
-  core profile.
+- gateway-terminated deployments bind the client-to-gateway TLS endpoint with
+  this construction, but that does not prove the final Agent process. A
+  gateway-routed deployment needs the separate Gateway Route Assertion profile.
 
 Negative L2 cases:
 
@@ -485,7 +484,7 @@ Negative L2 cases:
 | Same TLS connection, different task context | Reject: `request_context_sha256` mismatch. |
 | Same endpoint key, different TLS session | Reject unless the exporter hash, context hash, nonce, replay state, and attestation binder all match the accepted instance. |
 | Peer-selected exporter label | Reject: exporter label is verifier policy. |
-| Missing `tls_exporter_sha256` | Reject in v0.3 direct-Agent JWT/CWT acceptance. |
+| Missing `tls_exporter_sha256` | Reject in direct-Agent JWT/CWT acceptance. |
 | Missing `request_context_sha256` | Reject. |
 | Missing `attestation_binder_sha256` when accepted attestation binding exists | Reject. |
 | Reused nonce with same grant, audience, exporter hash, and context hash | Reject by replay state. |
@@ -918,15 +917,25 @@ explicitly authorized by the grant or local policy.
 
 ### 20.2 Gateway-routed mode
 
-Gateway-routed mode is not part of the v0.3 core profile. Gateway session
-binding proves the gateway endpoint, not the final Agent process. A
-gateway-routed deployment needs a separate route assertion and replay model
-before the relying party can treat the final Agent as accepted.
+Gateway-routed mode is a separate profile from direct-Agent mode. Gateway
+session binding proves the gateway endpoint, not the final Agent process. The
+relying party treats the final Agent as accepted only after a Gateway Route
+Assertion is checked against verifier-local route policy, freshness, replay
+state, and, when required, a final-Agent holder-of-key proof.
 
-The non-core sketch is kept in `docs/gateway-routed-profile.md`. It should be
-treated as post-v0.3 design work until route assertions, tenant partitioning,
-gateway-to-Agent holder-of-key proof, and live gateway red-team tests are
-implemented.
+The Gateway Route Assertion binds at least the gateway identity, relying-party
+audience, grant hash, gateway session-binding hash, route ID, tenant or
+authority partition, policy ID, target Agent, request-context hash, nonce, and
+expiry. When final-Agent process identity is required, the assertion also binds
+an Agent holder-of-key proof hash or target Agent key thumbprint. Missing,
+stale, replayed, wrong-route, wrong-tenant, wrong-policy, wrong-task, or
+wrong-Agent assertions fail closed.
+
+The claim map and failure semantics are kept in
+`docs/gateway-routed-profile.md`. Local route-assertion validation lives in
+`pkg/agtp/gatewayroute`. Runtime client wiring, route-assertion JWT/CWT
+adapters, and a full gateway-routed network red-team harness remain separate
+work.
 
 ## 21. Implementation hooks
 
@@ -1045,6 +1054,13 @@ locally configured issuer, audience, signing methods, and key lookup policy. It
 does not choose trusted Manager keys, rotate keys, perform revocation, define
 deployment policy, or own distributed replay storage.
 
+`pkg/agtp/gatewayroute` validates already-verified Gateway Route Assertions
+against verifier-local route policy and optional final-Agent holder-of-key
+proofs. It checks route, tenant, authority scope, policy, target Agent, request
+context, task or context, audit hash, freshness, and replay state. It does not
+parse JWS or COSE route assertions and does not replace a full gateway network
+harness.
+
 The initial JWT/JWS adapter treats grant `cnf.kid` as the authorized
 session-binding signer key. The Session Binding Statement signer is taken from
 the protected JWS `kid` header and later checked by `identitypolicy` against the
@@ -1066,10 +1082,13 @@ The implemented production profile covers:
   profile version, and `jti` checks;
 - confirmation-key binding through Identity Grant `cnf.kid`;
 - Session Binding Statement signer authorization against the verified grant;
-- comparison with the accepted TLS endpoint key, request context, and optional
-  attestation binder;
+- comparison with the accepted TLS endpoint key, TLS exporter hash, request
+  context, and optional attestation binder;
 - local `identitypolicy.Policy` comparison for required L3 through L6 values;
-- replay-cache enforcement before the observed identity is accepted.
+- replay-cache enforcement before the observed identity is accepted;
+- local Gateway Route Assertion validation for gateway-routed deployments,
+  including policy-bound diversion and required final-Agent holder-of-key proof
+  checks.
 
 Deployment still chooses trusted keys, expected policy values, revocation data,
 and distributed replay storage. Those sources can be Manager configuration,
@@ -1101,6 +1120,15 @@ An implementation that claims this profile should evaluate at least:
 
 `docs/live-red-team-report.md` records which of these are covered by the current
 repository and which remain future evaluation work.
+
+Current repository coverage includes local loopback relay checks, HTTP/2
+connection-reuse checks, malformed JWT/CWT corpus checks, deterministic
+acceptance-invariant coverage for the JWT gate, and local gateway route
+assertion red-team tests for policy-bound diversion and holder-of-key proof
+requirements. Remaining work includes TLS resumption and 0-RTT behavior,
+gRPC-specific connection pooling, route-assertion wire adapters, a full
+gateway-routed network harness, randomized property or fuzz generation, and
+hardware-backed confidential-VM attestation replay.
 
 ## Appendix A. Identity Grant JWT claim map
 

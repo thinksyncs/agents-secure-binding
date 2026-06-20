@@ -114,7 +114,7 @@
 \section{Session-Bound Agent Identity
 Profile}\label{session-bound-agent-identity-profile}
 
-Draft v0.3
+Draft v0.4-dev
 
 \subsection{Abstract}\label{abstract}
 
@@ -697,7 +697,7 @@ deployment policy requires it.
 
 \subsection{11. L2 Binding Construction}\label{l2-binding-construction}
 
-This section fixes the byte-level L2 binding construction for the v0.3
+This section fixes the byte-level L2 binding construction for the
 direct-Agent profile. A verifier MUST NOT replace these inputs with
 peer-selected labels, inferred context, display names, or reserialized
 semantic metadata.
@@ -781,8 +781,8 @@ Construction:
 \end{Shaded}
 
 \texttt{tls\_exporter\_sha256} is a mandatory Session Binding Statement
-field in the v0.3 direct-Agent profile. It binds the statement to the
-current TLS exporter secret without exposing the exporter value itself.
+field in the direct-Agent profile. It binds the statement to the current
+TLS exporter secret without exposing the exporter value itself.
 \texttt{request\_context\_sha256} is also mandatory and binds the
 statement to role, protocol, audience, grant, task, delegation,
 capability, tenant, and freshness context.
@@ -882,8 +882,9 @@ Reuse rules:
   endpoint-key binding, replay rules, and gateway behavior explicitly;
 \item
   gateway-terminated deployments bind the client-to-gateway TLS endpoint
-  only with this construction. They do not prove the final Agent process
-  in the v0.3 core profile.
+  with this construction, but that does not prove the final Agent
+  process. A gateway-routed deployment needs the separate Gateway Route
+  Assertion profile.
 \end{itemize}
 
 \textbf{Negative L2 cases:} a verifier rejects a same grant with a
@@ -1546,17 +1547,27 @@ policy.
 
 \subsubsection{20.2 Gateway-routed mode}\label{gateway-routed-mode}
 
-Gateway-routed mode is not part of the v0.3 core profile. Gateway
-session binding proves the gateway endpoint, not the final Agent
-process. A gateway-routed deployment needs a separate route assertion
-and replay model before the relying party can treat the final Agent as
-accepted.
+Gateway-routed mode is a separate profile from direct-Agent mode.
+Gateway session binding proves the gateway endpoint, not the final Agent
+process. The relying party treats the final Agent as accepted only after
+a Gateway Route Assertion is checked against verifier-local route policy,
+freshness, replay state, and, when required, a final-Agent
+holder-of-key proof.
 
-The non-core sketch is kept in
-\texttt{docs/gateway-routed-profile.md}. It should be treated as
-post-v0.3 design work until route assertions, tenant partitioning,
-gateway-to-Agent holder-of-key proof, and live gateway red-team tests
-are implemented.
+The Gateway Route Assertion binds at least the gateway identity,
+relying-party audience, grant hash, gateway session-binding hash, route
+ID, tenant or authority partition, policy ID, target Agent,
+request-context hash, nonce, and expiry. When final-Agent process
+identity is required, the assertion also binds an Agent holder-of-key
+proof hash or target Agent key thumbprint. Missing, stale, replayed,
+wrong-route, wrong-tenant, wrong-policy, wrong-task, or wrong-Agent
+assertions fail closed.
+
+The claim map and failure semantics are kept in
+\texttt{docs/gateway-routed-profile.md}. Local route-assertion
+validation lives in \texttt{pkg/agtp/gatewayroute}. Runtime client
+wiring, route-assertion JWT/CWT adapters, and a full gateway-routed
+network red-team harness remain separate work.
 
 \subsection{21. Implementation hooks}\label{implementation-hooks}
 
@@ -1723,6 +1734,13 @@ methods, and key lookup policy. It does not choose trusted Manager keys,
 rotate keys, perform revocation, define deployment policy, or own
 distributed replay storage.
 
+\texttt{pkg/agtp/gatewayroute} validates already-verified Gateway Route
+Assertions against verifier-local route policy and optional final-Agent
+holder-of-key proofs. It checks route, tenant, authority scope, policy,
+target Agent, request context, task or context, audit hash, freshness,
+and replay state. It does not parse JWS or COSE route assertions and
+does not replace a full gateway network harness.
+
 The initial JWT/JWS adapter treats grant \texttt{cnf.kid} as the
 authorized session-binding signer key. The Session Binding Statement
 signer is taken from the protected JWS \texttt{kid} header and later
@@ -1755,13 +1773,17 @@ The implemented production profile covers:
   Session Binding Statement signer authorization against the verified
   grant;
 \item
-  comparison with the accepted TLS endpoint key, request context, and
-  optional attestation binder;
+  comparison with the accepted TLS endpoint key, TLS exporter hash,
+  request context, and optional attestation binder;
 \item
   local \texttt{identitypolicy.Policy} comparison for required L3
   through L6 values;
 \item
-  replay-cache enforcement before the observed identity is accepted.
+  replay-cache enforcement before the observed identity is accepted;
+\item
+  local Gateway Route Assertion validation for gateway-routed
+  deployments, including policy-bound diversion and required final-Agent
+  holder-of-key proof checks.
 \end{itemize}
 
 Deployment still chooses trusted keys, expected policy values,
@@ -1810,6 +1832,15 @@ An implementation that claims this profile should evaluate at least:
 
 \texttt{docs/live-red-team-report.md} records which of these are covered
 by the current repository and which remain future evaluation work.
+
+Current repository coverage includes local loopback relay checks, HTTP/2
+connection-reuse checks, malformed JWT/CWT corpus checks, deterministic
+acceptance-invariant coverage for the JWT gate, and local gateway route
+assertion red-team tests for policy-bound diversion and holder-of-key
+proof requirements. Remaining work includes TLS resumption and 0-RTT
+behavior, gRPC-specific connection pooling, route-assertion wire
+adapters, a full gateway-routed network harness, randomized property or
+fuzz generation, and hardware-backed confidential-VM attestation replay.
 
 \subsection{Appendix A. Identity Grant JWT claim
 map}\label{appendix-a.-identity-grant-jwt-claim-map}
