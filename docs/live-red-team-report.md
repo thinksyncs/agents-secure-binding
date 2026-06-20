@@ -1,7 +1,7 @@
 # Live Red-Team Completion Report
 
 This report summarizes the completed live-style red-team work for the
-hardware-aware TLS identity-binding profile. The normative profile source is
+session-bound agent identity profile. The normative profile source is
 `docs/SSOT.md`.
 
 ## Status

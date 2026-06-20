@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this repository, please cite it using the metadata below."
-title: "Hardware-Aware TLS Identity Binding Profile"
+title: "Session-Bound Agent Identity Profile"
 type: software
 authors:
   - family-names: "Okutomi"
@@ -12,8 +12,8 @@ url: "https://github.com/thinksyncs/hardware-aware-tls-identity-binding/releases
 license: "Apache-2.0"
 abstract: >
   A security-hardening profile and Go implementation helpers for binding
-  upper-layer identity and authorization material to an accepted TLS 1.3
-  session and post-handshake platform-attestation facts.
+  upper-layer agent identity and authorization material to an accepted TLS 1.3
+  session, post-handshake platform-attestation facts, and local policy.
 keywords:
   - "TLS 1.3"
   - "remote attestation"

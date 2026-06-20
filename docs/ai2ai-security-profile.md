@@ -11,7 +11,7 @@ The profile adds a receiver-verifiable binding between:
 
 - a Manager-signed Identity Grant;
 - an Agent-signed Session Binding Statement;
-- the accepted TLS or hardware-aware TLS session;
+- the accepted TLS session and profile binding facts;
 - the task, context, authority scope, and authorization policy expected by the
   receiver.
 

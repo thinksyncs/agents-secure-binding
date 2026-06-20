@@ -1,7 +1,7 @@
 # Security Red-Team Tests
 
 Live-style red-team regressions for the AGTP identity hook used by
-hardware-aware TLS clients.
+session-bound agent identity clients.
 
 For the current coverage report and LRTT backlog, see
 `docs/live-red-team-report.md`.

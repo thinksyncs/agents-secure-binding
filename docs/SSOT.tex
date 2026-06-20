@@ -99,6 +99,7 @@
 \urlstyle{same}
 \hypersetup{
   hidelinks,
+  pdftitle={Session-Bound Agent Identity Profile},
   pdfcreator={LaTeX via pandoc}}
 
 \author{}
@@ -110,8 +111,8 @@
 \setcounter{tocdepth}{3}
 \tableofcontents
 }
-\section{Hardware-Aware TLS Identity Binding
-Profile}\label{hardware-aware-tls-identity-binding-profile}
+\section{Session-Bound Agent Identity
+Profile}\label{session-bound-agent-identity-profile}
 
 Draft v0.3
 
@@ -150,16 +151,18 @@ RFC 2119 and RFC 8174 when, and only when, they appear in all capitals.
 
 \subsection{2. Terms}\label{terms}
 
-Hardware-aware TLS, as used in this repository, means an
-application-profile acceptance gate over ordinary TLS 1.3 plus
-post-handshake platform attestation and session binding. It is not a TLS
-extension. Platform attestation does not replace the TLS handshake and
-does not authenticate the platform before a TLS channel exists.
+Session-Bound Agent Identity Profile means an application-profile
+acceptance gate over ordinary TLS 1.3, post-handshake platform
+attestation, session binding, authenticated identity material, and
+verifier-local policy. It is not a TLS extension. Platform attestation
+does not replace the TLS handshake and does not authenticate the
+platform before a TLS channel exists.
 
 The older shorthand \texttt{aTLS} is reserved for existing Cocos
-implementation code paths, package names, or historical text. New
-profile text should use ``hardware-aware TLS'' unless it refers to that
-legacy surface.
+implementation code paths, package names, or historical text. Older
+text may also use ``hardware-aware TLS'' for the lower-layer TLS and
+attestation binding portion. New profile text should use
+``Session-Bound Agent Identity Profile'' for the complete L0-L6 profile.
 
 Identity Grant means an authority statement issued by a Manager or
 another locally trusted policy authority. It authorizes upper-layer
@@ -417,7 +420,8 @@ before a verifier or application layer can enforce them consistently.
 \subsection{7. Application-protocol
 boundary}\label{application-protocol-boundary}
 
-TLS and the hardware-aware profile are responsible for L0 through L2:
+TLS and the TLS/attestation binding portion of the profile are
+responsible for L0 through L2:
 
 \begin{itemize}
 \tightlist
@@ -515,7 +519,7 @@ One implementation profile used in this repository is:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Identity Grant + hardware{-}aware TLS + OAuth/OIDC{-}style semantics + JWT/JWS encoding}
+\NormalTok{Identity Grant + session{-}bound profile + OAuth/OIDC{-}style semantics + JWT/JWS encoding}
 \end{Highlighting}
 \end{Shaded}
 
@@ -1535,10 +1539,10 @@ particular:
 \subsubsection{20.1 Direct-Agent mode}\label{direct-agent-mode}
 
 In direct-Agent mode, the Agent terminates the TLS session and performs
-the hardware-aware profile checks. The Agent signs the Session Binding
-Statement with the confirmation key named by the verified Identity
-Grant, or with an endpoint key explicitly authorized by the grant or
-local policy.
+the profile binding checks. The Agent signs the Session Binding
+Statement with the confirmation key named by the verified Identity Grant,
+or with an endpoint key explicitly authorized by the grant or local
+policy.
 
 \subsubsection{20.2 Gateway-routed mode}\label{gateway-routed-mode}
 
@@ -2055,7 +2059,7 @@ example}\label{appendix-d.-non-normative-trust-flow-example}
 \NormalTok{  M{-}\textgreater{}\textgreater{}B: Identity Grant signed by Manager key}
 \NormalTok{  Note over M,B: Grant authorizes Bob Agent key}
 
-\NormalTok{  A{-}\textgreater{}\textgreater{}B: Start TLS or hardware{-}aware TLS session}
+\NormalTok{  A{-}\textgreater{}\textgreater{}B: Start TLS session and profile binding}
 \NormalTok{  B{-}\textgreater{}\textgreater{}A: Identity Grant}
 \NormalTok{  B{-}\textgreater{}\textgreater{}A: Session Binding Statement signed by Bob Agent key}
 
@@ -2071,10 +2075,10 @@ example}\label{appendix-d.-non-normative-trust-flow-example}
 
 Bob Manager issues an authorization grant for Bob Agent. Bob Agent
 communicates with Alice and binds the Manager grant to the current TLS
-or hardware-aware TLS session. Malware on Alice's machine can try to
-inject peer-provided metadata or reuse an old grant or binding
-statement, but it cannot create a valid Manager-signed grant or
-Bob-Agent-key-signed session binding for the current accepted session.
+session. Malware on Alice's machine can try to inject peer-provided
+metadata or reuse an old grant or binding statement, but it cannot create
+a valid Manager-signed grant or Bob-Agent-key-signed session binding for
+the current accepted session.
 
 Alice accepts only the Manager-signed grant and the Agent-signed session
 binding after local expected service, Agent, task, and capability checks

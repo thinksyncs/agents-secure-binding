@@ -1,12 +1,12 @@
-# Hardware-Aware TLS Identity Binding Profile
+# Session-Bound Agent Identity Profile
 
 This repository defines a small security-hardening profile for binding a TLS
 1.3 session to hardware-attestation evidence and application identity policy.
 
-Hardware-aware TLS here means an application-profile acceptance gate over
-ordinary TLS 1.3 plus post-handshake platform attestation and session binding.
-It is not a TLS extension and it is not pre-TLS platform authentication.
-The older shorthand `aTLS` appears only for existing
+The profile is an application acceptance gate over ordinary TLS 1.3,
+post-handshake platform attestation, session binding, and local policy. It is
+not a TLS extension and it is not pre-TLS platform authentication. The older
+shorthand `aTLS` appears only for existing
 [Cocos](https://github.com/ultravioletrs/cocos) code paths, package names, or
 historical terms.
 
@@ -38,16 +38,16 @@ vectors, instead of a single broad claim that "the peer is authenticated."
 ## Specification Overview
 
 Endpoint authenticity is treated as a layered binding problem. TLS 1.3
-establishes the live channel. The hardware-aware TLS profile adds
-post-handshake platform-attestation and session-binding checks. Application
-policy then binds those facts to the intended deployment, agent, task, and
-authorization decision.
+establishes the live channel. The profile adds post-handshake
+platform-attestation and session-binding checks. Application policy then binds
+those facts to the intended deployment, agent, task, and authorization
+decision.
 
 | Layer | Binding question | Primary mechanism | Main owner |
 | --- | --- | --- | --- |
 | L0 | Same live TLS channel? | TLS 1.3 handshake, certificate validation, session keys | TLS |
 | L1 | Same trusted platform or VM evidence? | remote-attestation evidence appraisal, CoRIM or local measurement policy | hardware-attestation verifier |
-| L2 | Same evidence or authenticator bound to that TLS session? | Exported Authenticator, `tls_exporter_sha256`, request context, Session Binding Statement | hardware-aware TLS profile, then application profile |
+| L2 | Same evidence or authenticator bound to that TLS session? | Exported Authenticator, `tls_exporter_sha256`, request context, Session Binding Statement | TLS and attestation binding profile, then application profile |
 | L3 | Same intended service, tenant, deployment, or environment? | Manager-signed Identity Grant, local expected deployment policy | application profile / local policy |
 | L4 | Same intended workload, process, or agent? | agent identity, workload identity, confirmation key binding | application profile / local policy |
 | L5 | Same task, thread, context, or delegation? | task id, context id, delegation token, replay cache | application profile / application state |
@@ -55,8 +55,8 @@ authorization decision.
 | L7 | Same current trust lifecycle state? | key rotation, revocation, registry freshness, version pinning, audit state | deployment / registry operations |
 
 The current Go identity-policy API focuses on L3 through L6 checks after the
-lower-layer hardware-aware TLS checks have accepted the session. L7 is an
-operational profile requirement:
+lower-layer TLS and attestation binding checks have accepted the session. L7 is
+an operational profile requirement:
 deployments must decide which registries, JWKS endpoints, revocation sources,
 and replay-cache backends are authoritative.
 
@@ -95,7 +95,7 @@ first appears.
 
 ## Focus
 
-- hardware-aware TLS session binding for application-profile data
+- TLS and attestation session binding for application-profile data
 - Manager-signed identity grants
 - Session Binding Statements tied to the accepted TLS session
 - separate Manager signing keys and Agent confirmation keys
@@ -128,7 +128,7 @@ model.
 - `docs/architecture.md`: security-profile architecture and role split
 - `docs/threat-model.md`: relay, diversion, wrong-agent, replay, and downgrade
   threat model
-- `docs/hwtls-binding-profile.md`: hardware-aware TLS binding expectations
+- `docs/hwtls-binding-profile.md`: TLS and attestation binding expectations
   for application profiles
 - `docs/http-cache-profile.md`: non-normative HTTP response-cache profile for
   endpoints near identity-binding decisions
