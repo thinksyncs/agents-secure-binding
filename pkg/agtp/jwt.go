@@ -7,9 +7,12 @@ package agtp
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -40,6 +43,7 @@ var (
 	ErrInvalidTokenType        = errors.New("agtp: invalid token type")
 	ErrUnsupportedVersion      = errors.New("agtp: unsupported profile version")
 	ErrUnsafeSigningMethod     = errors.New("agtp: unsafe JWT signing method")
+	ErrDuplicateJWTMember      = errors.New("agtp: duplicate JWT JSON member")
 )
 
 const (
@@ -403,6 +407,9 @@ func parseJWT(tokenString string, claims jwt.Claims, opts JWTVerifyOptions) (*jw
 	if err != nil {
 		return nil, "", err
 	}
+	if err := rejectDuplicateJWTJSONMembers(tokenString); err != nil {
+		return nil, "", err
+	}
 
 	var signerKey string
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
@@ -423,6 +430,81 @@ func parseJWT(tokenString string, claims jwt.Claims, opts JWTVerifyOptions) (*jw
 		return nil, "", ErrRevokedJWTID
 	}
 	return token, signerKey, nil
+}
+
+func rejectDuplicateJWTJSONMembers(tokenString string) error {
+	parts := strings.Split(tokenString, ".")
+	if len(parts) != 3 {
+		return nil
+	}
+	for _, part := range parts[:2] {
+		data, err := base64.RawURLEncoding.DecodeString(part)
+		if err != nil {
+			return nil
+		}
+		if err := rejectDuplicateJSONMembers(data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rejectDuplicateJSONMembers(data []byte) error {
+	dec := json.NewDecoder(strings.NewReader(string(data)))
+	dec.UseNumber()
+	if err := rejectDuplicateJSONValue(dec); err != nil {
+		return err
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		if err == nil {
+			return errors.New("agtp: trailing JWT JSON data")
+		}
+		return err
+	}
+	return nil
+}
+
+func rejectDuplicateJSONValue(dec *json.Decoder) error {
+	tok, err := dec.Token()
+	if err != nil {
+		return err
+	}
+	delim, ok := tok.(json.Delim)
+	if !ok {
+		return nil
+	}
+
+	switch delim {
+	case '{':
+		seen := map[string]struct{}{}
+		for dec.More() {
+			keyToken, err := dec.Token()
+			if err != nil {
+				return err
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return errors.New("agtp: invalid JWT JSON object key")
+			}
+			if _, ok := seen[key]; ok {
+				return ErrDuplicateJWTMember
+			}
+			seen[key] = struct{}{}
+			if err := rejectDuplicateJSONValue(dec); err != nil {
+				return err
+			}
+		}
+	case '[':
+		for dec.More() {
+			if err := rejectDuplicateJSONValue(dec); err != nil {
+				return err
+			}
+		}
+	default:
+		return nil
+	}
+	_, err = dec.Token()
+	return err
 }
 
 func parserOptions(opts JWTVerifyOptions) ([]jwt.ParserOption, error) {

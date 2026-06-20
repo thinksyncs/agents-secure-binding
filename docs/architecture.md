@@ -1,17 +1,17 @@
-# Hardware-Aware TLS Identity-Binding Architecture
+# Session-Bound Agent Identity Architecture
 
-This architecture note covers the key split for hardware-aware TLS identity
-binding: TLS and attestation establish lower-layer facts, while application
-policy decides whether those facts describe the intended peer. AGTP is one
-reference target, not the owner of this security-hardening profile. The layer
-split is one decomposition; terminology, layers, and verification order are
-defined in `docs/SSOT.md`.
+This architecture note covers the key split for session-bound agent identity:
+TLS and attestation establish lower-layer facts, while application policy
+decides whether those facts describe the intended peer. AGTP is one reference
+target, not the owner of this security-hardening profile. The layer split is
+one decomposition; terminology, layers, and verification order are defined in
+`docs/SSOT.md`.
 
-Hardware-aware TLS means an application-profile acceptance gate over ordinary
-TLS 1.3 plus post-handshake platform attestation and session binding. It is not
-a TLS extension. TLS establishes the encrypted channel first. The profile then
-decides whether the application may treat that channel as an attested
-application peer.
+The profile is an application acceptance gate over ordinary TLS 1.3,
+post-handshake platform attestation, session binding, authenticated identity
+material, and local policy. It is not a TLS extension. TLS establishes the
+encrypted channel first. The profile then decides whether the application may
+treat that channel as the intended application peer.
 
 ## Roles
 

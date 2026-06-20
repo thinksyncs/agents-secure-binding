@@ -1,4 +1,4 @@
-# Hardware-Aware TLS Identity Binding Profile
+# Session-Bound Agent Identity Profile
 
 Draft v0.3
 
@@ -36,15 +36,17 @@ when, and only when, they appear in all capitals.
 
 ## 2. Terms
 
-Hardware-aware TLS, as used in this repository, means an application-profile
-acceptance gate over ordinary TLS 1.3 plus post-handshake platform attestation
-and session binding. It is not a TLS extension. Platform attestation does not
-replace the TLS handshake and does not authenticate the platform before a TLS
-channel exists.
+Session-Bound Agent Identity Profile means an application-profile acceptance
+gate over ordinary TLS 1.3, post-handshake platform attestation, session
+binding, authenticated identity material, and verifier-local policy. It is not a
+TLS extension. Platform attestation does not replace the TLS handshake and does
+not authenticate the platform before a TLS channel exists.
 
 The older shorthand `aTLS` is reserved for existing Cocos implementation code
-paths, package names, or historical text. New profile text should use
-"hardware-aware TLS" unless it refers to that legacy surface.
+paths, package names, or historical text. Older text may also use
+"hardware-aware TLS" for the lower-layer TLS and attestation binding portion.
+New profile text should use "Session-Bound Agent Identity Profile" for the
+complete L0-L6 profile.
 
 Identity Grant means an authority statement issued by a Manager or another
 locally trusted policy authority. It authorizes upper-layer identity, task, and
@@ -175,7 +177,8 @@ application layer can enforce them consistently.
 
 ## 7. Application-protocol boundary
 
-TLS and the hardware-aware profile are responsible for L0 through L2:
+TLS and the TLS/attestation binding portion of the profile are responsible for
+L0 through L2:
 
 - authenticating the live TLS channel;
 - appraising attested platform or VM evidence;
@@ -217,7 +220,7 @@ accepting the peer.
 One implementation profile used in this repository is:
 
 ```text
-Identity Grant + hardware-aware TLS + OAuth/OIDC-style semantics + JWT/JWS encoding
+Identity Grant + session-bound profile + OAuth/OIDC-style semantics + JWT/JWS encoding
 ```
 
 OAuth and OIDC provide claim semantics and review vocabulary. JWT/JWS provides
@@ -909,9 +912,9 @@ Deployments SHOULD minimize stable cross-context identifiers. In particular:
 ### 20.1 Direct-Agent mode
 
 In direct-Agent mode, the Agent terminates the TLS session and performs the
-hardware-aware profile checks. The Agent signs the Session Binding Statement
-with the confirmation key named by the verified Identity Grant, or with an
-endpoint key explicitly authorized by the grant or local policy.
+profile binding checks. The Agent signs the Session Binding Statement with the
+confirmation key named by the verified Identity Grant, or with an endpoint key
+explicitly authorized by the grant or local policy.
 
 ### 20.2 Gateway-routed mode
 
@@ -1227,7 +1230,7 @@ sequenceDiagram
   M->>B: Identity Grant signed by Manager key
   Note over M,B: Grant authorizes Bob Agent key
 
-  A->>B: Start TLS or hardware-aware TLS session
+  A->>B: Start TLS session and profile binding
   B->>A: Identity Grant
   B->>A: Session Binding Statement signed by Bob Agent key
 
@@ -1241,11 +1244,10 @@ sequenceDiagram
 ```
 
 Bob Manager issues an authorization grant for Bob Agent. Bob Agent communicates
-with Alice and binds the Manager grant to the current TLS or hardware-aware TLS
-session. Malware on Alice's machine can try to inject peer-provided metadata or
-reuse an old grant or binding statement, but it cannot create a valid
-Manager-signed grant or Bob-Agent-key-signed session binding for the current
-accepted session.
+with Alice and binds the Manager grant to the current accepted TLS session.
+Malware on Alice's machine can try to inject peer-provided metadata or reuse an
+old grant or binding statement, but it cannot create a valid Manager-signed
+grant or Bob-Agent-key-signed session binding for the current accepted session.
 
 Alice accepts only the Manager-signed grant and the Agent-signed session binding
 after local expected service, Agent, task, and capability checks pass. This does

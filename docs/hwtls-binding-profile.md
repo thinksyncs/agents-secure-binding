@@ -1,14 +1,14 @@
-# Hardware-Aware TLS Binding Profile
+# TLS and Attestation Binding Profile
 
-Hardware-aware TLS binding expectations apply to application-profile material.
-AGTP is one reference target, but the profile does not define AGTP core syntax
-or introduce new cryptography.
+TLS and attestation binding expectations apply to application-profile
+material. AGTP is one reference target, but the profile does not define AGTP
+core syntax or introduce new cryptography.
 
-Hardware-aware TLS means an application-profile acceptance gate over ordinary
-TLS 1.3 plus post-handshake platform attestation bound to the accepted TLS
-session. It is not a TLS extension, a replacement for the TLS 1.3 handshake, or
-pre-TLS platform authentication. The application should withhold profile-level
-trust until the post-handshake attestation and binding checks succeed.
+This profile uses ordinary TLS 1.3 plus post-handshake platform attestation
+bound to the accepted TLS session. It is not a TLS extension, a replacement for
+the TLS 1.3 handshake, or pre-TLS platform authentication. The application
+should withhold profile-level trust until the post-handshake attestation and
+binding checks succeed.
 
 ## Binding Goal
 
