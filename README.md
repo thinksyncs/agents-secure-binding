@@ -174,11 +174,10 @@ The vectors are profile-level vectors. They do not define AGTP core syntax.
 
 ## Implementation Provenance
 
-This repository is forked from
-[ultravioletrs/cocos.git](https://github.com/ultravioletrs/cocos.git). This
-work uses Cocos hardware-attested TLS as related implementation experience and
-as a source of concrete requirements. Cocos itself is not the scope of this
-security profile.
+This work uses
+[ultravioletrs/cocos](https://github.com/ultravioletrs/cocos) as related
+implementation experience and as a source of concrete requirements. Cocos
+itself is not the scope of this security profile.
 
 ## Reference Protocol Notes
 
