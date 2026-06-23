@@ -32,6 +32,7 @@ require (
 	github.com/google/gce-tcb-verifier v0.3.1
 	github.com/veraison/corim v1.1.2
 	github.com/veraison/go-cose v1.3.0
+	github.com/veraison/swid v1.1.1-0.20230911094910-8ffdd07a22ca
 )
 
 require (
@@ -58,7 +59,7 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.5 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gofrs/uuid/v5 v5.4.0 // indirect
 	github.com/google/certificate-transparency-go v1.1.8 // indirect
@@ -86,7 +87,6 @@ require (
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/veraison/eat v0.0.0-20210331113810-3da8a4dd42ff // indirect
-	github.com/veraison/swid v1.1.1-0.20230911094910-8ffdd07a22ca // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.39.0 // indirect
