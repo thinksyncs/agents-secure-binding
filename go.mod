@@ -27,11 +27,12 @@ require (
 	github.com/caarlos0/env/v10 v10.0.0
 	github.com/fxamacker/cbor/v2 v2.9.0
 	github.com/go-chi/chi/v5 v5.2.5
-	github.com/go-jose/go-jose/v4 v4.1.3
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/gce-tcb-verifier v0.3.1
 	github.com/veraison/corim v1.1.2
 	github.com/veraison/go-cose v1.3.0
+	github.com/veraison/swid v1.1.1-0.20230911094910-8ffdd07a22ca
 )
 
 require (
@@ -86,7 +87,6 @@ require (
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/veraison/eat v0.0.0-20210331113810-3da8a4dd42ff // indirect
-	github.com/veraison/swid v1.1.1-0.20230911094910-8ffdd07a22ca // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.39.0 // indirect
