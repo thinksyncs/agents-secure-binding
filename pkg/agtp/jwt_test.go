@@ -44,23 +44,23 @@ const (
 func TestVerifyIdentityGrantJWTMapsClaims(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	tokenString := signTestJWT(t, "manager-key", []byte("manager-secret"), jwt.MapClaims{
-		"iss":            "manager",
-		"sub":            "agent-a",
-		"aud":            "client-a",
-		"jti":            "grant-1",
-		"iat":            now.Unix(),
-		"exp":            now.Add(time.Minute).Unix(),
-		"agtp_type":      TokenTypeIdentityGrant,
-		"agtp_version":   ProfileVersion,
-		"cnf":            map[string]any{"kid": "agent-key-1"},
-		"service":        testServicePayments,
-		"tenant":         "tenant-a",
-		"deployment":     "prod",
-		"intent_ref":     testIntentOrdersSettle,
-		"capability_ref": testCapabilitySettle,
-		"ontology_id":    testOntologyOrders,
-		"scope":          "orders:read orders:write",
-		"resource":       "orders",
+		"iss":               "manager",
+		"sub":               "agent-a",
+		"aud":               "client-a",
+		"jti":               "grant-1",
+		"iat":               now.Unix(),
+		"exp":               now.Add(time.Minute).Unix(),
+		ClaimTokenType:      TokenTypeIdentityGrant,
+		ClaimProfileVersion: ProfileVersion,
+		"cnf":               map[string]any{"kid": "agent-key-1"},
+		"service":           testServicePayments,
+		"tenant":            "tenant-a",
+		"deployment":        "prod",
+		"intent_ref":        testIntentOrdersSettle,
+		"capability_ref":    testCapabilitySettle,
+		"ontology_id":       testOntologyOrders,
+		"scope":             "orders:read orders:write",
+		"resource":          "orders",
 	})
 
 	grant, err := VerifyIdentityGrantJWT(tokenString, JWTVerifyOptions{
@@ -100,6 +100,46 @@ func TestVerifyIdentityGrantJWTMapsClaims(t *testing.T) {
 	}
 	if !slices.Equal(grant.Values.Resources, []string{"orders"}) {
 		t.Fatalf("grant resources = %#v", grant.Values.Resources)
+	}
+}
+
+func TestIdentityGrantHashUsesSSOTDomainSeparator(t *testing.T) {
+	tokenString := "header.payload.signature"
+	sum := sha256.Sum256([]byte("sbaip.identity-grant.jwt.v1\x00" + tokenString))
+	want := "sha256:" + hex.EncodeToString(sum[:])
+
+	if got := IdentityGrantHash(tokenString); got != want {
+		t.Fatalf("IdentityGrantHash() = %q, want %q", got, want)
+	}
+}
+
+func TestVerifyIdentityGrantJWTAcceptsLegacyAGTPProfileClaims(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	tokenString := signTestJWT(t, "manager-key", []byte("manager-secret"), jwt.MapClaims{
+		"iss":                     "manager",
+		"sub":                     "agent-a",
+		"aud":                     "client-a",
+		"jti":                     "grant-1",
+		"iat":                     now.Unix(),
+		"exp":                     now.Add(time.Minute).Unix(),
+		LegacyClaimTokenType:      LegacyTokenTypeIdentityGrant,
+		LegacyClaimProfileVersion: ProfileVersion,
+		"cnf":                     map[string]any{"kid": "agent-key-1"},
+		"service":                 testServicePayments,
+	})
+
+	grant, err := VerifyIdentityGrantJWT(tokenString, JWTVerifyOptions{
+		ExpectedIssuer:   "manager",
+		ExpectedAudience: "client-a",
+		ValidMethods:     []string{"HS256"},
+		KeyFunc:          testKeyFunc(map[string][]byte{"manager-key": []byte("manager-secret")}),
+		Now:              now,
+	})
+	if err != nil {
+		t.Fatalf("VerifyIdentityGrantJWT() error = %v", err)
+	}
+	if grant.GrantHash != IdentityGrantHash(tokenString) {
+		t.Fatalf("grant hash = %q, want SSOT profile hash", grant.GrantHash)
 	}
 }
 
@@ -1619,19 +1659,19 @@ func testKeyFunc(keys map[string][]byte) KeyFunc {
 
 func testDefaultGrantClaims(now time.Time) jwt.MapClaims {
 	return jwt.MapClaims{
-		"iss":          "manager",
-		"sub":          "agent-a",
-		"aud":          "client-a",
-		"jti":          "grant-1",
-		"iat":          now.Unix(),
-		"exp":          now.Add(time.Minute).Unix(),
-		"agtp_type":    TokenTypeIdentityGrant,
-		"agtp_version": ProfileVersion,
-		"cnf":          map[string]any{"kid": "agent-key-1"},
-		"service":      testServicePayments,
-		"deployment":   "prod",
-		"task_id":      "task-1",
-		"scope":        "orders:read",
+		"iss":               "manager",
+		"sub":               "agent-a",
+		"aud":               "client-a",
+		"jti":               "grant-1",
+		"iat":               now.Unix(),
+		"exp":               now.Add(time.Minute).Unix(),
+		ClaimTokenType:      TokenTypeIdentityGrant,
+		ClaimProfileVersion: ProfileVersion,
+		"cnf":               map[string]any{"kid": "agent-key-1"},
+		"service":           testServicePayments,
+		"deployment":        "prod",
+		"task_id":           "task-1",
+		"scope":             "orders:read",
 	}
 }
 
@@ -1642,8 +1682,8 @@ func testDefaultBindingClaims(now time.Time, grantHash string) jwt.MapClaims {
 		"jti":                    "binding-1",
 		"iat":                    now.Unix(),
 		"exp":                    now.Add(time.Minute).Unix(),
-		"agtp_type":              TokenTypeSessionBinding,
-		"agtp_version":           ProfileVersion,
+		ClaimTokenType:           TokenTypeSessionBinding,
+		ClaimProfileVersion:      ProfileVersion,
 		"grant_hash":             grantHash,
 		"leaf_public_key_sha256": "sha256:leaf",
 		"tls_exporter_sha256":    "sha256:exporter",
@@ -1655,7 +1695,7 @@ func testDefaultBindingClaims(now time.Time, grantHash string) jwt.MapClaims {
 func testDefaultEnvelopeClaims(now time.Time, grantToken, grantHash string) jwt.MapClaims {
 	claims := testDefaultBindingClaims(now, grantHash)
 	claims["jti"] = "envelope-1"
-	claims["agtp_type"] = TokenTypeSessionEnvelope
+	claims[ClaimTokenType] = TokenTypeSessionEnvelope
 	claims["identity_grant_jwt"] = grantToken
 	return claims
 }

@@ -7,6 +7,8 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"testing"
 	"time"
@@ -32,6 +34,18 @@ func TestVerifySessionIdentityCWTAcceptsManagerGrantAndLocalPolicy(t *testing.T)
 	}
 	if result.Assertion.Values.Service != testServicePayments {
 		t.Fatalf("result service = %q, want payments", result.Assertion.Values.Service)
+	}
+}
+
+func TestIdentityGrantCWTHashUsesSSOTDomainSeparator(t *testing.T) {
+	token := []byte("cwt-token")
+	h := sha256.New()
+	_, _ = h.Write([]byte("sbaip.identity-grant.cwt.v1\x00"))
+	_, _ = h.Write(token)
+	want := "sha256:" + hex.EncodeToString(h.Sum(nil))
+
+	if got := IdentityGrantCWTHash(token); got != want {
+		t.Fatalf("IdentityGrantCWTHash() = %q, want %q", got, want)
 	}
 }
 

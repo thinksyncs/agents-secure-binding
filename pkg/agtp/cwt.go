@@ -30,6 +30,8 @@ var (
 	ErrFutureToken           = errors.New("agtp: token issued in the future")
 )
 
+const identityGrantCWTHashSeed = "sbaip.identity-grant.cwt.v1\x00"
+
 // CWTKeyFunc resolves a COSE verification key by protected-header key id.
 // Callers that use CWTKeyFunc own the key namespace: issuer, audience, key use,
 // algorithm, key status, and public-key identity must be enforced outside the
@@ -91,7 +93,7 @@ func ValidateCWTVerifyOptions(opts CWTVerifyOptions) error {
 // statement.
 func IdentityGrantCWTHash(token []byte) string {
 	h := sha256.New()
-	_, _ = h.Write([]byte("agtp.identity-grant.cwt.v1\x00"))
+	_, _ = h.Write([]byte(identityGrantCWTHashSeed))
 	_, _ = h.Write(token)
 	return "sha256:" + hex.EncodeToString(h.Sum(nil))
 }
@@ -434,8 +436,10 @@ func keyIDFromCOSE(msg *cose.Sign1Message) (string, error) {
 
 func cwtProfileClaims(claims map[any]any) profileClaims {
 	return profileClaims{
-		TokenType:      cwtStringClaimOrEmpty(claims, ClaimTokenType),
-		ProfileVersion: cwtStringClaimOrEmpty(claims, ClaimProfileVersion),
+		TokenType:            cwtStringClaimOrEmpty(claims, ClaimTokenType),
+		ProfileVersion:       cwtStringClaimOrEmpty(claims, ClaimProfileVersion),
+		LegacyTokenType:      cwtStringClaimOrEmpty(claims, LegacyClaimTokenType),
+		LegacyProfileVersion: cwtStringClaimOrEmpty(claims, LegacyClaimProfileVersion),
 	}
 }
 

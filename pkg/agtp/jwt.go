@@ -1,8 +1,8 @@
 // Copyright (c) Ultraviolet
 // SPDX-License-Identifier: Apache-2.0
 
-// Package agtp implements wire-token profiles used to feed AGTP identity
-// material into the hardware-aware TLS identity-policy validator.
+// Package agtp implements wire-token adapters used to feed session-bound
+// identity material into the hardware-aware TLS identity-policy validator.
 package agtp
 
 import (
@@ -47,13 +47,22 @@ var (
 )
 
 const (
-	ClaimTokenType      = "agtp_type"
-	ClaimProfileVersion = "agtp_version"
+	ClaimTokenType      = "profile_type"
+	ClaimProfileVersion = "profile_version"
 
-	TokenTypeIdentityGrant   = "agtp.identity-grant"
-	TokenTypeSessionBinding  = "agtp.session-binding"
-	TokenTypeSessionEnvelope = "agtp.session-envelope"
+	LegacyClaimTokenType      = "agtp_type"
+	LegacyClaimProfileVersion = "agtp_version"
+
+	TokenTypeIdentityGrant   = "sbaip.identity-grant"
+	TokenTypeSessionBinding  = "sbaip.session-binding"
+	TokenTypeSessionEnvelope = "sbaip.session-envelope"
+
+	LegacyTokenTypeIdentityGrant   = "agtp.identity-grant"
+	LegacyTokenTypeSessionBinding  = "agtp.session-binding"
+	LegacyTokenTypeSessionEnvelope = "agtp.session-envelope"
+
 	ProfileVersion           = "1"
+	identityGrantJWTHashSeed = "sbaip.identity-grant.jwt.v1\x00"
 )
 
 // KeyFunc resolves a JWT verification key by protected-header key id. Callers
@@ -115,8 +124,10 @@ type confirmationClaim struct {
 }
 
 type profileClaims struct {
-	TokenType      string `json:"agtp_type,omitempty"`
-	ProfileVersion string `json:"agtp_version,omitempty"`
+	TokenType            string `json:"profile_type,omitempty"`
+	ProfileVersion       string `json:"profile_version,omitempty"`
+	LegacyTokenType      string `json:"agtp_type,omitempty"`
+	LegacyProfileVersion string `json:"agtp_version,omitempty"`
 }
 
 type identityGrantClaims struct {
@@ -179,7 +190,7 @@ type sessionEnvelopeClaims struct {
 // IdentityGrantHash returns the domain-separated hash of the exact signed grant
 // bytes. The same value is carried by the session binding statement.
 func IdentityGrantHash(tokenString string) string {
-	sum := sha256.Sum256([]byte("agtp.identity-grant.jwt.v1\x00" + tokenString))
+	sum := sha256.Sum256([]byte(identityGrantJWTHashSeed + tokenString))
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
@@ -587,13 +598,52 @@ func keyFuncForOptions(opts JWTVerifyOptions) (KeyFunc, error) {
 }
 
 func validateProfileClaims(claims profileClaims, expectedType string) error {
-	if strings.TrimSpace(claims.TokenType) != expectedType {
+	if !profileTypeMatches(strings.TrimSpace(claims.TokenType), expectedType, false) {
 		return ErrInvalidTokenType
 	}
-	if strings.TrimSpace(claims.ProfileVersion) != ProfileVersion {
+	if !profileVersionMatches(strings.TrimSpace(claims.ProfileVersion)) {
+		return ErrUnsupportedVersion
+	}
+	if !profileTypeMatches(strings.TrimSpace(claims.LegacyTokenType), expectedType, true) {
+		return ErrInvalidTokenType
+	}
+	if !profileVersionMatches(strings.TrimSpace(claims.LegacyProfileVersion)) {
+		return ErrUnsupportedVersion
+	}
+	if strings.TrimSpace(claims.TokenType) == "" && strings.TrimSpace(claims.LegacyTokenType) == "" {
+		return ErrInvalidTokenType
+	}
+	if strings.TrimSpace(claims.ProfileVersion) == "" && strings.TrimSpace(claims.LegacyProfileVersion) == "" {
 		return ErrUnsupportedVersion
 	}
 	return nil
+}
+
+func profileTypeMatches(value, expectedType string, allowLegacyValue bool) bool {
+	if value == "" {
+		return true
+	}
+	if value == expectedType {
+		return true
+	}
+	return allowLegacyValue && value == legacyTokenType(expectedType)
+}
+
+func profileVersionMatches(value string) bool {
+	return value == "" || value == ProfileVersion
+}
+
+func legacyTokenType(tokenType string) string {
+	switch tokenType {
+	case TokenTypeIdentityGrant:
+		return LegacyTokenTypeIdentityGrant
+	case TokenTypeSessionBinding:
+		return LegacyTokenTypeSessionBinding
+	case TokenTypeSessionEnvelope:
+		return LegacyTokenTypeSessionEnvelope
+	default:
+		return ""
+	}
 }
 
 func validateSessionBindingClaims(claims *sessionBindingClaims) error {
