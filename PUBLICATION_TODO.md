@@ -33,10 +33,10 @@ resolve them.
 
 | Area | Evidence | Classification | Required disposition |
 | --- | --- | --- | --- |
-| OCI image handling | `pkg/oci/skopeo.go` passes `--insecure-policy`, `--src-tls-verify=false`, `--dest-tls-verify=false`, and `--tls-verify=false`. | P0 before production runtime image pull, decrypt, inspect, or archive conversion use. | Default to verified policy and TLS verification; allow insecure mode only behind an explicit local development setting with tests. |
-| Egress proxy policy | `pkg/egress/proxy.go` has allowlist TODOs in CONNECT, HTTP, and HTTP/2 paths. | P0 before exposing the proxy outside a trusted test network. | Add a fail-closed allowlist policy, audit fields, and negative tests for denied CONNECT and HTTP/2 destinations. |
+| OCI image handling | `pkg/oci/skopeo.go` no longer passes `--insecure-policy`, `--src-tls-verify=false`, `--dest-tls-verify=false`, or `--tls-verify=false`. | Addressed for the current runtime helper. | Keep skopeo policy and TLS verification enabled by default; do not add an insecure development mode without explicit tests and documentation. |
+| Egress proxy policy | `pkg/egress/proxy.go` now defaults to loopback-only destinations and supports an explicit host, host:port, IP, or CIDR allowlist for CONNECT, HTTP, and HTTP/2 paths. | Addressed for the current proxy helper. | Configure `EGRESS_PROXY_ALLOWLIST` or `--allowlist` for non-loopback deployments; store unavailability is not part of this local proxy. |
 | SEV-SNP HostData and kernel hashes | `hal/cloud/qemu.sh` accepts `SEV_SNP_HOST_DATA` and optional `kernel-hashes=on` without a profile-level appraisal contract. | P0 before relying on HostData or kernel hashes as verifier policy. | Define the expected HostData source, hash construction, appraisal rule, and fail-closed behavior when missing or mismatched. |
-| Zip extraction | `internal/zip.go` joins `targetDir` with archive entry names during extraction. | P0 before accepting untrusted archives. | Reject absolute paths, `..` traversal, unsafe symlinks, and paths escaping the extraction root; add regression tests. |
+| Zip extraction | `internal/zip.go` validates archive entry paths before extraction. | Addressed for the current in-memory zip helper. | Continue rejecting absolute paths, `..` traversal, unsafe symlinks, unsupported file types, and paths escaping the extraction root. |
 
 ## Evaluation Boundaries
 

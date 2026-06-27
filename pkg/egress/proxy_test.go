@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -631,7 +632,7 @@ func TestProxyHTTP2ErrorPath(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Create a request that will trigger HTTP/2 handling
-	req, err := http.NewRequest("GET", "http://"+ln.Addr().String()+"/test", nil)
+	req, err := http.NewRequest("GET", "/test", nil)
 	require.NoError(t, err)
 
 	// Force HTTP/2 by setting the request protocol
@@ -645,8 +646,7 @@ func TestProxyHTTP2ErrorPath(t *testing.T) {
 	// Call the handler directly to test HTTP/2 error path
 	proxy.server.Handler.ServeHTTP(rr, req)
 
-	// Should get an error response
-	assert.Equal(t, http.StatusBadGateway, rr.Code)
+	assert.Equal(t, http.StatusForbidden, rr.Code)
 }
 
 // TestNewProxyHTTP2ConfigWarning tests NewProxy when HTTP/2 configuration might fail.
@@ -788,6 +788,40 @@ func TestProxyHTTP2WithAbsoluteURL(t *testing.T) {
 	req.ProtoMajor = 2
 	req.ProtoMinor = 0
 
+	rr := httptest.NewRecorder()
+	proxy.server.Handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestProxyDenyNonAllowlistedDestination(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	proxy := NewProxy(logger, ":0")
+
+	req, err := http.NewRequest(http.MethodGet, "http://example.invalid/test", nil)
+	require.NoError(t, err)
+	req.Host = "example.invalid"
+
+	rr := httptest.NewRecorder()
+	proxy.server.Handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+}
+
+func TestProxyExplicitAllowlist(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	backendURL, err := url.Parse(backend.URL)
+	require.NoError(t, err)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	proxy := NewProxyWithAllowedDestinations(logger, ":0", []string{backendURL.Host})
+
+	req, err := http.NewRequest(http.MethodGet, backend.URL, nil)
+	require.NoError(t, err)
 	rr := httptest.NewRecorder()
 	proxy.server.Handler.ServeHTTP(rr, req)
 

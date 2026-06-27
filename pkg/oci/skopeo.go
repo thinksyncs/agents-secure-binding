@@ -1,14 +1,15 @@
-// Copyright (c) Ultraviolet
 // SPDX-License-Identifier: Apache-2.0
 
 package oci
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -30,103 +31,108 @@ type SkopeoClient struct {
 
 // NewSkopeoClient creates a new Skopeo client.
 func NewSkopeoClient(workDir string) (*SkopeoClient, error) {
-	// Find skopeo binary
 	skopeoPath, err := exec.LookPath("skopeo")
 	if err != nil {
 		return nil, fmt.Errorf("skopeo not found in PATH: %w", err)
 	}
-
-	// Ensure work directory exists
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create work directory: %w", err)
 	}
-
-	return &SkopeoClient{
-		skopeoPath: skopeoPath,
-		workDir:    workDir,
-	}, nil
+	return &SkopeoClient{skopeoPath: skopeoPath, workDir: workDir}, nil
 }
 
 // PullAndDecrypt pulls an OCI image and decrypts it if encrypted.
 func (s *SkopeoClient) PullAndDecrypt(ctx context.Context, source ResourceSource, destDir string) error {
-	// Ensure destination directory exists
+	if source.URI == "" {
+		return fmt.Errorf("oci source URI is empty")
+	}
+	if destDir == "" {
+		return fmt.Errorf("oci destination directory is empty")
+	}
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
+	return s.run(ctx, "skopeo copy failed", s.pullAndDecryptArgs(source, destDir))
+}
 
+func (s *SkopeoClient) pullAndDecryptArgs(source ResourceSource, destDir string) []string {
 	args := []string{"copy"}
-
-	// Add decryption key if image is encrypted
 	if source.Encrypted {
 		args = append(args, "--decryption-key", DecryptionKeyProvider)
 	}
-
-	// Add insecure policy for testing (TODO: use proper policy in production)
-	args = append(args, "--insecure-policy", "--src-tls-verify=false", "--dest-tls-verify=false")
-
-	// Source and destination
-	args = append(args, source.URI, "oci:"+destDir)
-
-	cmd := exec.CommandContext(ctx, s.skopeoPath, args...)
-
-	// Set OCICRYPT environment
-	cmd.Env = append(os.Environ(),
-		OCICryptKeyproviderConfig+"="+DefaultOCICryptConfig)
-
-	// Set working directory
-	cmd.Dir = s.workDir
-
-	// Capture output
-	// Debug: Print full command
-	fmt.Printf("executing skopeo command: %s %v\n", s.skopeoPath, args)
-	fmt.Printf("skopeo environment: %s\n", OCICryptKeyproviderConfig+"="+DefaultOCICryptConfig)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("skopeo copy failed: %w\nOutput: %s", err, string(output))
-	}
-
-	return nil
+	return append(args, source.URI, "oci:"+destDir)
 }
 
 // Inspect inspects an OCI image and returns basic manifest information.
 func (s *SkopeoClient) Inspect(ctx context.Context, imageRef string) (*ImageManifest, error) {
-	args := []string{"inspect", "--insecure-policy", "--tls-verify=false", imageRef}
-
-	cmd := exec.CommandContext(ctx, s.skopeoPath, args...)
-	cmd.Env = append(os.Environ(),
-		OCICryptKeyproviderConfig+"="+DefaultOCICryptConfig)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("skopeo inspect failed: %w\nOutput: %s", err, string(output))
+	if imageRef == "" {
+		return nil, fmt.Errorf("oci image reference is empty")
 	}
 
-	// For now, return basic info
-	// nolint:godox // TODO: Parse JSON output for detailed manifest info
-	return &ImageManifest{
-		Reference: imageRef,
-	}, nil
+	output, err := s.output(ctx, "skopeo inspect failed", s.inspectArgs(imageRef))
+	if err != nil {
+		return nil, err
+	}
+
+	manifest := &ImageManifest{Reference: imageRef}
+	var inspect struct {
+		Digest string   `json:"Digest"`
+		Layers []string `json:"Layers"`
+	}
+	if err := json.Unmarshal(output, &inspect); err == nil {
+		manifest.Digest = inspect.Digest
+		manifest.Layers = append([]string(nil), inspect.Layers...)
+	}
+	return manifest, nil
+}
+
+func (s *SkopeoClient) inspectArgs(imageRef string) []string {
+	return []string{"inspect", imageRef}
 }
 
 // ToDockerArchive converts an OCI directory to a Docker archive tarball.
 func (s *SkopeoClient) ToDockerArchive(ctx context.Context, ociDir, destFile string) error {
-	args := []string{"copy", "--insecure-policy", "--src-tls-verify=false", "--dest-tls-verify=false", "oci:" + ociDir, "docker-archive:" + destFile}
-
-	cmd := exec.CommandContext(ctx, s.skopeoPath, args...)
-	cmd.Env = append(os.Environ(),
-		OCICryptKeyproviderConfig+"="+DefaultOCICryptConfig)
-	cmd.Dir = s.workDir
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("skopeo copy to docker-archive failed: %w\nOutput: %s", err, string(output))
+	if ociDir == "" {
+		return fmt.Errorf("oci directory is empty")
 	}
+	if destFile == "" {
+		return fmt.Errorf("docker archive destination is empty")
+	}
+	return s.run(ctx, "skopeo copy to docker-archive failed", s.toDockerArchiveArgs(ociDir, destFile))
+}
 
-	return nil
+func (s *SkopeoClient) toDockerArchiveArgs(ociDir, destFile string) []string {
+	return []string{"copy", "oci:" + ociDir, "docker-archive:" + destFile}
 }
 
 // GetLocalImagePath returns the path to a local OCI image directory.
 func (s *SkopeoClient) GetLocalImagePath(name string) string {
 	return filepath.Join(s.workDir, name)
+}
+
+func (s *SkopeoClient) run(ctx context.Context, prefix string, args []string) error {
+	_, err := s.output(ctx, prefix, args)
+	return err
+}
+
+func (s *SkopeoClient) output(ctx context.Context, prefix string, args []string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, s.skopeoPath, args...)
+	cmd.Env = skopeoEnv()
+	cmd.Dir = s.workDir
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w\nOutput: %s", prefix, err, string(output))
+	}
+	return output, nil
+}
+
+func skopeoEnv() []string {
+	env := os.Environ()
+	for _, value := range env {
+		if strings.HasPrefix(value, OCICryptKeyproviderConfig+"=") {
+			return env
+		}
+	}
+	return append(env, OCICryptKeyproviderConfig+"="+DefaultOCICryptConfig)
 }

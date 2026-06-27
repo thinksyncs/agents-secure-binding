@@ -381,8 +381,6 @@ func TestUnzipFromMemory_MoreEdgeCases(t *testing.T) {
 	})
 
 	t.Run("zip with absolute paths", func(t *testing.T) {
-		// This tests if UnzipFromMemory handles files with names like "/tmp/hacker.txt"
-		// zip.NewReader usually doesn't allow absolute paths easily, but let's see.
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
 		_, err := zw.Create("/tmp/test.txt")
@@ -391,11 +389,23 @@ func TestUnzipFromMemory_MoreEdgeCases(t *testing.T) {
 
 		tempDir := t.TempDir()
 		err = UnzipFromMemory(buf.Bytes(), tempDir)
-		assert.NoError(t, err)
-		// It should be joined with tempDir, not written to /tmp/test.txt
-		expectedPath := filepath.Join(tempDir, "/tmp/test.txt")
-		_, err = os.Stat(expectedPath)
-		assert.NoError(t, err)
+		assert.Error(t, err)
+	})
+
+	t.Run("zip with parent traversal", func(t *testing.T) {
+		tempDir := t.TempDir()
+		escapeName := filepath.Base(tempDir) + "-escape.txt"
+
+		var buf bytes.Buffer
+		zw := zip.NewWriter(&buf)
+		_, err := zw.Create("../" + escapeName)
+		require.NoError(t, err)
+		require.NoError(t, zw.Close())
+
+		err = UnzipFromMemory(buf.Bytes(), tempDir)
+		assert.Error(t, err)
+		_, statErr := os.Stat(filepath.Join(filepath.Dir(tempDir), escapeName))
+		assert.Error(t, statErr)
 	})
 }
 

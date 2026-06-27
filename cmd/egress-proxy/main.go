@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/caarlos0/env/v11"
@@ -29,6 +30,7 @@ type config struct {
 	Level        string `env:"COCOS_LOG_LEVEL" envAlternate:"AGENT_LOG_LEVEL" envDefault:"info"`
 	Port         string `env:"COCOS_PROXY_PORT"                envDefault:"3128"`
 	LogForwarder string `env:"LOG_FORWARDER_SOCKET"            envDefault:"/run/cocos/log.sock"`
+	Allowlist    string `env:"EGRESS_PROXY_ALLOWLIST"          envDefault:""`
 }
 
 func main() {
@@ -48,6 +50,7 @@ func main() {
 
 	pflag.StringVar(&cfg.Level, "log-level", cfg.Level, "Log level")
 	pflag.StringVar(&cfg.Port, "port", cfg.Port, "Proxy port")
+	pflag.StringVar(&cfg.Allowlist, "allowlist", cfg.Allowlist, "Comma-separated egress destination allowlist")
 
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
@@ -102,7 +105,7 @@ func run(cfg config) error {
 		}
 	})
 
-	proxy := egress.NewProxy(logger, ":"+cfg.Port)
+	proxy := egress.NewProxyWithAllowedDestinations(logger, ":"+cfg.Port, splitAllowlist(cfg.Allowlist))
 
 	g.Go(func() error {
 		return proxy.Start()
@@ -126,4 +129,21 @@ func run(cfg config) error {
 	}
 
 	return nil
+}
+
+func splitAllowlist(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == '\n' || r == '\t' || r == ' '
+	})
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }

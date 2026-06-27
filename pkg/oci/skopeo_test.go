@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -198,4 +199,47 @@ func TestSkopeoClient_ToDockerArchive(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "skopeo copy to docker-archive failed")
 	})
+}
+
+func TestSkopeoClientArgsDoNotDisablePolicyOrTLS(t *testing.T) {
+	client := &SkopeoClient{skopeoPath: "skopeo", workDir: t.TempDir()}
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "pull",
+			args: client.pullAndDecryptArgs(ResourceSource{
+				URI:       "docker://registry.example/repo:tag",
+				Encrypted: false,
+			}, "/tmp/oci"),
+		},
+		{
+			name: "encrypted pull",
+			args: client.pullAndDecryptArgs(ResourceSource{
+				URI:       "docker://registry.example/repo:tag",
+				Encrypted: true,
+			}, "/tmp/oci"),
+		},
+		{name: "inspect", args: client.inspectArgs("docker://registry.example/repo:tag")},
+		{name: "archive", args: client.toDockerArchiveArgs("/tmp/oci", "/tmp/archive.tar")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			joined := strings.Join(tt.args, " ")
+			assert.NotContains(t, joined, "--insecure-policy")
+			assert.NotContains(t, joined, "--tls-verify=false")
+			assert.NotContains(t, joined, "--src-tls-verify=false")
+			assert.NotContains(t, joined, "--dest-tls-verify=false")
+		})
+	}
+
+	encryptedArgs := client.pullAndDecryptArgs(ResourceSource{
+		URI:       "docker://registry.example/repo:tag",
+		Encrypted: true,
+	}, "/tmp/oci")
+	assert.Contains(t, encryptedArgs, "--decryption-key")
+	assert.Contains(t, encryptedArgs, DecryptionKeyProvider)
 }
