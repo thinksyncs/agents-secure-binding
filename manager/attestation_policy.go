@@ -9,7 +9,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/base64"
 	"fmt"
 
 	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/qemu"
@@ -63,11 +62,11 @@ func (ms *managerService) FetchAttestationPolicy(_ context.Context, computationI
 
 		// Extract host data if enabled
 		if vmi.Config.SEVSNPConfig.EnableHostData {
-			hostDataBytes, err := base64.StdEncoding.DecodeString(vmi.Config.SEVSNPConfig.HostData)
+			normalized, err := qemu.NormalizeSEVSNPHostData(vmi.Config.SEVSNPConfig.HostData)
 			if err != nil {
-				return nil, fmt.Errorf("failed to decode host data: %w", err)
+				return nil, fmt.Errorf("invalid host data: %w", err)
 			}
-			hostData = fmt.Sprintf("%x", hostDataBytes)
+			hostData = normalized
 		}
 
 		// Use launch TCB from VM info

@@ -110,7 +110,12 @@ func main() {
 		exitCode = 1
 		return
 	}
-	args := qemuCfg.ConstructQemuArgs()
+	args, err := qemuCfg.ConstructQemuArgsChecked()
+	if err != nil {
+		logger.Error(fmt.Sprintf("invalid QEMU security configuration: %s", err))
+		exitCode = 1
+		return
+	}
 	logger.Info(strings.Join(args, " "))
 
 	managerGRPCConfig := smqserver.Config{}

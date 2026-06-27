@@ -4,9 +4,15 @@
 package http
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	stdtls "crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"io"
 	"log/slog"
+	"math/big"
 	"net/http"
 	"os"
 	"testing"
@@ -225,11 +231,13 @@ func TestCreateTransport_ATLSCustomRequestContext(t *testing.T) {
 	t.Cleanup(func() {
 		_ = os.Remove(policyFile.Name())
 	})
+	caFile := createHTTPTestCAFile(t)
 
 	config := &clients.AttestedClientConfig{
 		StandardClientConfig: clients.StandardClientConfig{
-			URL:     "https://agent.example.com",
-			Timeout: 60 * time.Second,
+			URL:          "https://agent.example.com",
+			Timeout:      60 * time.Second,
+			ServerCAFile: caFile,
 		},
 		AttestationPolicy:            policyFile.Name(),
 		AttestedTLS:                  true,
@@ -240,7 +248,7 @@ func TestCreateTransport_ATLSCustomRequestContext(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, transport)
-	assert.Equal(t, tls.WithATLS, security)
+	assert.Equal(t, tls.WithMATLS, security)
 	assert.NotNil(t, transport.DialTLSContext)
 }
 
@@ -326,11 +334,13 @@ func TestCreateTransport_ATLSInvalidRequestContext(t *testing.T) {
 	t.Cleanup(func() {
 		_ = os.Remove(policyFile.Name())
 	})
+	caFile := createHTTPTestCAFile(t)
 
 	config := &clients.AttestedClientConfig{
 		StandardClientConfig: clients.StandardClientConfig{
-			URL:     "https://agent.example.com",
-			Timeout: 60 * time.Second,
+			URL:          "https://agent.example.com",
+			Timeout:      60 * time.Second,
+			ServerCAFile: caFile,
 		},
 		AttestationPolicy:            policyFile.Name(),
 		AttestedTLS:                  true,
@@ -363,6 +373,50 @@ func httpTestKeyFunc(keys map[string][]byte) agtp.KeyFunc {
 		}
 		return key, nil
 	}
+}
+
+func createHTTPTestCAFile(t *testing.T) string {
+	t.Helper()
+
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	caTemplate := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization: []string{"Test Org"},
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	caCertDER, err := x509.CreateCertificate(rand.Reader, &caTemplate, &caTemplate, &caKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	caFile, err := os.CreateTemp("", "http-client-ca-*.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.Remove(caFile.Name())
+	})
+
+	if err := pem.Encode(caFile, &pem.Block{Type: "CERTIFICATE", Bytes: caCertDER}); err != nil {
+		_ = caFile.Close()
+		t.Fatal(err)
+	}
+	if err := caFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	return caFile.Name()
 }
 
 func TestCreateTransport_BasicTLSError(t *testing.T) {

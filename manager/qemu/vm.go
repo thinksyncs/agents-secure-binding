@@ -156,7 +156,10 @@ func (v *qemuVM) executableAndArgs() (string, []string, error) {
 		return "", nil, err
 	}
 
-	args := v.vmi.Config.ConstructQemuArgs()
+	args, err := v.vmi.Config.ConstructQemuArgsChecked()
+	if err != nil {
+		return "", nil, err
+	}
 
 	if v.vmi.Config.UseSudo {
 		args = append([]string{exe}, args...)

@@ -191,7 +191,9 @@ func (config Config) ConstructQemuArgs() []string {
 				config.IGVMConfig.ID))
 
 		if config.SEVSNPConfig.EnableHostData {
-			hostData = fmt.Sprintf(",host-data=%s", config.SEVSNPConfig.HostData)
+			if normalized, err := NormalizeSEVSNPHostData(config.SEVSNPConfig.HostData); err == nil {
+				hostData = fmt.Sprintf(",host-data=%s", normalized)
+			}
 		}
 
 		args = append(args, "-object",

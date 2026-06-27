@@ -212,13 +212,14 @@ func TestLoadATLSConfig(t *testing.T) {
 		errorMsg          string
 	}{
 		{
-			name:              "ValidATLSConfig",
+			name:              "ATLSWithoutCARejected",
 			attestationPolicy: policyFile,
 			serverCAFile:      "",
 			clientCert:        "",
 			clientKey:         "",
-			expectedSec:       WithATLS,
-			expectError:       false,
+			expectedSec:       WithoutTLS,
+			expectError:       true,
+			errorMsg:          "server CA file is required",
 		},
 		{
 			name:              "ValidMATLSConfig",
@@ -230,12 +231,12 @@ func TestLoadATLSConfig(t *testing.T) {
 			expectError:       false,
 		},
 		{
-			name:              "ValidATLSWithClientCert",
+			name:              "MATLSWithClientCert",
 			attestationPolicy: policyFile,
-			serverCAFile:      "",
+			serverCAFile:      caFile,
 			clientCert:        certFile,
 			clientKey:         keyFile,
-			expectedSec:       WithATLS,
+			expectedSec:       WithMATLS,
 			expectError:       false,
 		},
 		{
@@ -296,12 +297,9 @@ func TestLoadATLSConfig(t *testing.T) {
 			assert.Equal(t, tt.expectedSec, result.Security)
 			assert.NotNil(t, result.Config)
 
-			// Verify TLS config properties
-			assert.Equal(t, tt.serverCAFile == "", result.Config.InsecureSkipVerify)
+			assert.False(t, result.Config.InsecureSkipVerify)
 			assert.Equal(t, uint16(stdtls.VersionTLS13), result.Config.MinVersion)
-			if tt.serverCAFile != "" {
-				assert.NotNil(t, result.Config.RootCAs)
-			}
+			assert.NotNil(t, result.Config.RootCAs)
 		})
 	}
 }
@@ -340,7 +338,7 @@ func TestLoadRootCAs(t *testing.T) {
 			name:        "InvalidPEMData",
 			caFile:      invalidCAFile,
 			expectError: true,
-			errorMsg:    "failed to decode PEM block",
+			errorMsg:    "failed to append root ca to tls.Config",
 		},
 	}
 

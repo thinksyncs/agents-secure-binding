@@ -4,6 +4,7 @@ package qemu
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -164,6 +165,7 @@ func TestConstructQemuArgs(t *testing.T) {
 }
 
 func TestConstructQemuArgs_HostData(t *testing.T) {
+	hostData := strings.Repeat("a", SEVSNPHostDataHexLength)
 	config := Config{
 		EnableSEVSNP: true,
 		SEVSNPConfig: SEVSNPConfig{
@@ -171,14 +173,17 @@ func TestConstructQemuArgs_HostData(t *testing.T) {
 			CBitPos:         51,
 			ReducedPhysBits: 1,
 			EnableHostData:  true,
-			HostData:        "test-host-data",
+			HostData:        hostData,
 		},
 	}
 
-	result := config.ConstructQemuArgs()
+	result, err := config.ConstructQemuArgsChecked()
+	if err != nil {
+		t.Fatalf("ConstructQemuArgsChecked() error = %v", err)
+	}
 
 	expected := "-object"
-	expectedValue := "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,host-data=test-host-data"
+	expectedValue := "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,host-data=" + hostData
 
 	found := false
 	for i, arg := range result {
@@ -192,5 +197,19 @@ func TestConstructQemuArgs_HostData(t *testing.T) {
 
 	if !found {
 		t.Errorf("ConstructQemuArgs() did not contain expected SEV-SNP configuration with host data")
+	}
+}
+
+func TestConstructQemuArgsCheckedRejectsInvalidHostData(t *testing.T) {
+	config := Config{
+		EnableSEVSNP: true,
+		SEVSNPConfig: SEVSNPConfig{
+			EnableHostData: true,
+			HostData:       "test-host-data",
+		},
+	}
+
+	if _, err := config.ConstructQemuArgsChecked(); err == nil {
+		t.Fatal("ConstructQemuArgsChecked() error = nil, want invalid host data rejection")
 	}
 }

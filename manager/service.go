@@ -5,7 +5,6 @@ package manager
 import (
 	"context"
 	"crypto"
-	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net"
@@ -24,7 +23,6 @@ import (
 	"github.com/thinksyncs/hardware-aware-tls-identity-binding/manager/vm"
 	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/attestation/corimgen"
 	"github.com/thinksyncs/hardware-aware-tls-identity-binding/pkg/manager"
-	"golang.org/x/crypto/sha3"
 )
 
 const (
@@ -199,12 +197,6 @@ func (ms *managerService) CreateVM(ctx context.Context, req *CreateReq) (string,
 		return "", id, errors.Wrap(ErrFailedToAllocatePort, err)
 	}
 	cfg.Config.HostFwdAgent = agentPort
-
-	if cfg.Config.EnableSEVSNP {
-		todo := sha3.Sum256([]byte("TODO"))
-		// Define host-data value of QEMU for SEV-SNP, with a base64 encoding of the computation hash.
-		cfg.Config.SEVSNPConfig.HostData = base64.StdEncoding.EncodeToString(todo[:])
-	}
 
 	cvm := ms.vmFactory(cfg, id, ms.logger)
 	if err = cvm.Start(); err != nil {
