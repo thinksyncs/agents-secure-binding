@@ -1,8 +1,13 @@
 // Copyright (c) Ultraviolet
 // SPDX-License-Identifier: Apache-2.0
 
-// Package gatewayroute validates signed gateway route assertions after their
-// wire signatures have already been checked by the caller.
+// Package gatewayroute is an experimental reference-adapter policy gate for
+// Gateway Route Assertions after their wire signatures have already been
+// checked by the caller.
+//
+// The package is not part of the Direct-Agent core verifier path. Runtime
+// gateway-routed mode remains out of scope for this repository until it is split
+// into an explicit experimental module or a separate implementation surface.
 package gatewayroute
 
 import (

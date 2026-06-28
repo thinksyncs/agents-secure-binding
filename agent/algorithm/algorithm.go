@@ -20,7 +20,7 @@ const (
 
 	ResultsDir     = "results"
 	DatasetsDir    = "datasets"
-	AlgoWorkingDir = "/cocos"
+	AlgoWorkingDir = "/agents-secure-binding"
 )
 
 func AlgorithmTypeToContext(ctx context.Context, algoType string) context.Context {

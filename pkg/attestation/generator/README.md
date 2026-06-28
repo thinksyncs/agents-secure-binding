@@ -93,7 +93,7 @@ corimBytes, err := generator.GenerateCoRIM(opts)
 ## Integration
 
 This package is used by:
-- **CLI**: `cocos-cli policy create-corim snp/tdx` commands
+- **CLI**: `agents-secure-binding-cli policy create-corim snp/tdx` commands
 - **Manager**: Dynamic CoRIM generation in `FetchAttestationPolicy`
 - **Scripts**: `scripts/corim_gen` standalone tool
 

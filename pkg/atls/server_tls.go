@@ -65,8 +65,8 @@ func generateEphemeralIdentity() (tls.Certificate, error) {
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			CommonName:   "cocos-atls-ephemeral",
-			Organization: []string{"Ultraviolet"},
+			CommonName:   "agents-secure-binding-atls-ephemeral",
+			Organization: []string{"ToppyMicroServices"},
 		},
 		NotBefore:             time.Now().Add(-1 * time.Hour),
 		NotAfter:              time.Now().Add(24 * time.Hour),

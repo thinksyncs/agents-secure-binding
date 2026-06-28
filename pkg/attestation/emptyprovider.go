@@ -6,7 +6,7 @@ package attestation
 import (
 	"fmt"
 
-	cocosai "github.com/thinksyncs/agents-secure-binding"
+	asb "github.com/thinksyncs/agents-secure-binding"
 )
 
 var _ Provider = (*EmptyProvider)(nil)
@@ -25,7 +25,7 @@ func (e *EmptyProvider) TeeAttestation(teeNonce []byte) ([]byte, error) {
 }
 
 func (e *EmptyProvider) VTpmAttestation(vTpmNonce []byte) ([]byte, error) {
-	return cocosai.EmbeddedAttestation, nil
+	return asb.EmbeddedAttestation, nil
 }
 
 func (e *EmptyProvider) AzureAttestationToken(nonce []byte) ([]byte, error) {

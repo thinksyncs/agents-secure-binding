@@ -7,10 +7,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/thinksyncs/agents-secure-binding/internal/errors"
 	attestation_agent "github.com/thinksyncs/agents-secure-binding/internal/proto/attestation-agent"
+	"github.com/thinksyncs/agents-secure-binding/internal/runtime/netguard"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+var ErrPlaintextRemoteAttestationAgent = errors.New("plaintext CC attestation-agent provider requires loopback")
 
 // Provider implements attestation.Provider interface by delegating to CC attestation-agent.
 type Provider struct {
@@ -22,6 +26,9 @@ type Provider struct {
 // NewProvider creates a new CC attestation-agent provider.
 // addr should be in the format "host:port" (e.g., "127.0.0.1:50002").
 func NewProvider(addr string) (*Provider, error) {
+	if !netguard.PlaintextTargetAllowed(addr) {
+		return nil, ErrPlaintextRemoteAttestationAgent
+	}
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to CC attestation-agent at %s: %w", addr, err)

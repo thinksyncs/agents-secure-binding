@@ -19,7 +19,7 @@ import (
 
 func unixSocketPath(t *testing.T, name string) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "cocos-grpc-")
+	dir, err := os.MkdirTemp("", "asb-grpc-")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return filepath.Join(dir, name)

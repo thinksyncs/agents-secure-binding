@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/url"
 
+	"github.com/thinksyncs/agents-secure-binding/internal/runtime/netguard"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -22,6 +23,7 @@ var (
 	ErrMissingTraceURL     = errors.New("runtime tracing: missing trace URL")
 	ErrMissingServiceName  = errors.New("runtime tracing: missing service name")
 	ErrUnsupportedTraceURL = errors.New("runtime tracing: unsupported trace URL scheme")
+	ErrInsecureTraceURL    = errors.New("runtime tracing: http trace URL requires localhost, loopback, or https")
 )
 
 // NewProvider initializes an OTLP/HTTP trace provider.
@@ -36,6 +38,9 @@ func NewProvider(ctx context.Context, svcName string, traceURL url.URL, instance
 	var client otlptrace.Client
 	switch traceURL.Scheme {
 	case "http":
+		if !netguard.InsecureHTTPAllowed(traceURL) {
+			return nil, ErrInsecureTraceURL
+		}
 		client = otlptracehttp.NewClient(
 			otlptracehttp.WithEndpoint(traceURL.Host),
 			otlptracehttp.WithURLPath(traceURL.Path),

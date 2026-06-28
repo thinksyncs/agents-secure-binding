@@ -4,6 +4,7 @@
 package agtp
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/hmac"
@@ -30,6 +31,13 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	attestation "github.com/thinksyncs/agents-secure-binding/pkg/atls/eaattestation"
 	"github.com/thinksyncs/agents-secure-binding/pkg/atls/identitypolicy"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 const (
@@ -1021,6 +1029,51 @@ func TestVerifySessionIdentityJWTLiveRedTeamHTTP2ConnectionReuse(t *testing.T) {
 	}
 }
 
+func TestVerifySessionIdentityJWTLiveRedTeamGRPCConnectionReuse(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	grantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), testDefaultGrantClaims(now))
+	bindingTaskA := signTestJWT(t, "agent-key-1", []byte("agent-secret"), liveRedTeamBindingClaims(now, grantToken, "task-a", "sha256:exporter-shared"))
+	bindingTaskB := signTestJWT(t, "agent-key-1", []byte("agent-secret"), liveRedTeamBindingClaims(now, grantToken, "task-b", "sha256:exporter-shared"))
+	replay := newAGTPReplayCache()
+
+	lis := bufconn.Listen(1024 * 1024)
+	server := grpc.NewServer()
+	healthpb.RegisterHealthServer(server, &liveRedTeamGRPCHealthServer{
+		now:         now,
+		replay:      replay,
+		tlsExporter: "sha256:exporter-shared",
+	})
+	go func() {
+		_ = server.Serve(lis)
+	}()
+	t.Cleanup(func() {
+		server.Stop()
+		_ = lis.Close()
+	})
+
+	var dials atomic.Int64
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			dials.Add(1)
+			return lis.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("grpc.NewClient() error = %v", err)
+	}
+	defer conn.Close()
+	client := healthpb.NewHealthClient(conn)
+
+	liveRedTeamGRPCCheck(t, client, "task-a", grantToken, bindingTaskA, codes.OK)
+	liveRedTeamGRPCCheck(t, client, "task-b", grantToken, bindingTaskA, codes.PermissionDenied)
+	liveRedTeamGRPCCheck(t, client, "task-b", grantToken, bindingTaskB, codes.OK)
+
+	if got := dials.Load(); got != 1 {
+		t.Fatalf("gRPC harness opened %d client connections, want 1 reused ClientConn", got)
+	}
+}
+
 func TestVerifySessionIdentityJWTLiveRedTeamRejectsNetworkRelayAcrossEndpoints(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	grantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), testDefaultGrantClaims(now))
@@ -1486,7 +1539,7 @@ func TestVerifyJWTRejectsUnsafeSigningMethodAllowList(t *testing.T) {
 	}
 }
 
-func signTestJWT(t *testing.T, keyID string, secret []byte, claims jwt.MapClaims) string {
+func signTestJWT(t testing.TB, keyID string, secret []byte, claims jwt.MapClaims) string {
 	t.Helper()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	token.Header["kid"] = keyID
@@ -1497,7 +1550,7 @@ func signTestJWT(t *testing.T, keyID string, secret []byte, claims jwt.MapClaims
 	return tokenString
 }
 
-func signRawTestJWT(t *testing.T, headerJSON, payloadJSON string, secret []byte) string {
+func signRawTestJWT(t testing.TB, headerJSON, payloadJSON string, secret []byte) string {
 	t.Helper()
 	header := base64.RawURLEncoding.EncodeToString([]byte(headerJSON))
 	payload := base64.RawURLEncoding.EncodeToString([]byte(payloadJSON))
@@ -1563,6 +1616,44 @@ func liveRedTeamDoRequest(t *testing.T, client *http.Client, url, grantToken, bi
 	if resp.StatusCode != wantStatus {
 		t.Fatalf("Do(%s) status = %d, want %d", url, resp.StatusCode, wantStatus)
 	}
+}
+
+type liveRedTeamGRPCHealthServer struct {
+	healthpb.UnimplementedHealthServer
+	now         time.Time
+	replay      identitypolicy.ReplayCache
+	tlsExporter string
+}
+
+func (s *liveRedTeamGRPCHealthServer) Check(ctx context.Context, req *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	task := req.GetService()
+	opts := liveRedTeamSessionIdentityOptions(s.now, s.replay, s.tlsExporter, "sha256:context-"+task, "nonce-"+task)
+	_, err := VerifySessionIdentityJWT(firstMetadataValue(md, "identity-grant-jwt"), firstMetadataValue(md, "session-binding-jwt"), opts)
+	if err != nil {
+		return nil, status.Error(codes.PermissionDenied, err.Error())
+	}
+	return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_SERVING}, nil
+}
+
+func liveRedTeamGRPCCheck(t *testing.T, client healthpb.HealthClient, service, grantToken, bindingToken string, want codes.Code) {
+	t.Helper()
+	ctx := metadata.AppendToOutgoingContext(context.Background(),
+		"identity-grant-jwt", grantToken,
+		"session-binding-jwt", bindingToken,
+	)
+	_, err := client.Check(ctx, &healthpb.HealthCheckRequest{Service: service})
+	if got := status.Code(err); got != want {
+		t.Fatalf("gRPC Check(%s) code = %v, want %v; err = %v", service, got, want, err)
+	}
+}
+
+func firstMetadataValue(md metadata.MD, key string) string {
+	values := md.Get(key)
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 type liveRedTeamTLSMaterial struct {

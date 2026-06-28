@@ -1,15 +1,15 @@
 [Unit]
-Description=Cocos Log Forwarder
+Description=Agents Secure Binding Log Forwarder
 After=network.target
-Before=cocos-agent.service
+Before=agents-secure-binding-agent.service
 
 [Service]
-WorkingDirectory=/cocos
-StandardOutput=file:/var/log/cocos/log-forwarder.stdout
-StandardError=file:/var/log/cocos/log-forwarder.stderr
-EnvironmentFile=/etc/cocos/environment
-ExecStartPre=/cocos_init/agent_setup.sh
-ExecStart=/usr/bin/log-forwarder
+WorkingDirectory=/agents-secure-binding
+StandardOutput=file:/var/log/agents-secure-binding/log-forwarder.stdout
+StandardError=file:/var/log/agents-secure-binding/log-forwarder.stderr
+EnvironmentFile=/etc/agents-secure-binding/environment
+ExecStartPre=/agents-secure-binding-init/agent_setup.sh
+ExecStart=/usr/bin/agents-secure-binding-log-forwarder
 Restart=always
 RestartSec=5s
 

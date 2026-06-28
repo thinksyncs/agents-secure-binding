@@ -127,7 +127,7 @@ func TestConstructQemuArgs(t *testing.T) {
 				},
 				IGVMConfig: IGVMConfig{
 					ID:   "igvm0",
-					File: "/test/path/cocos-igvm.igvm",
+					File: "/test/path/asb-igvm.igvm",
 				},
 				KernelCommandLine: "quiet console=null",
 				NoGraphic:         true,
@@ -144,7 +144,7 @@ func TestConstructQemuArgs(t *testing.T) {
 				"-machine", "confidential-guest-support=sev0,memory-backend=ram1,igvm-cfg=igvm0",
 				"-object", "memory-backend-memfd,id=ram1,size=2048M,share=true,prealloc=false",
 				"-object", "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1",
-				"-object", "igvm-cfg,id=igvm0,file=/test/path/cocos-igvm.igvm",
+				"-object", "igvm-cfg,id=igvm0,file=/test/path/asb-igvm.igvm",
 				"-kernel", "img/bzImage",
 				"-append", "quiet console=null",
 				"-initrd", "img/rootfs.cpio.gz",

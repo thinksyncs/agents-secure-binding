@@ -44,8 +44,8 @@ const (
 
 type config struct {
 	LogLevel                    string  `env:"MANAGER_LOG_LEVEL"                  envDefault:"info"`
-	JaegerURL                   url.URL `env:"COCOS_JAEGER_URL"                   envDefault:"http://localhost:4318"`
-	TraceRatio                  float64 `env:"COCOS_JAEGER_TRACE_RATIO"           envDefault:"1.0"`
+	JaegerURL                   url.URL `env:"ASB_JAEGER_URL"                     envDefault:"http://localhost:4318"`
+	TraceRatio                  float64 `env:"ASB_JAEGER_TRACE_RATIO"             envDefault:"1.0"`
 	InstanceID                  string  `env:"MANAGER_INSTANCE_ID"                envDefault:""`
 	AttestationPolicyBinaryPath string  `env:"MANAGER_ATTESTATION_POLICY_BINARY_PATH" envDefault:"../../build"`
 	PcrValues                   string  `env:"MANAGER_PCR_VALUES"                 envDefault:""`

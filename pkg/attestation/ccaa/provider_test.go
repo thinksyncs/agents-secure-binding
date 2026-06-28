@@ -4,12 +4,24 @@ package ccaa
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
 	attestation_agent "github.com/thinksyncs/agents-secure-binding/internal/proto/attestation-agent"
 	"github.com/thinksyncs/agents-secure-binding/internal/proto/attestation-agent/mocks"
 )
+
+func TestNewProviderRejectsRemotePlaintextTCP(t *testing.T) {
+	provider, err := NewProvider("192.0.2.10:50002")
+
+	if provider != nil {
+		t.Fatal("expected nil provider")
+	}
+	if !errors.Is(err, ErrPlaintextRemoteAttestationAgent) {
+		t.Fatalf("NewProvider() error = %v, want %v", err, ErrPlaintextRemoteAttestationAgent)
+	}
+}
 
 // TestTeeAttestationSuccess tests successful TDX attestation.
 func TestTeeAttestationSuccess(t *testing.T) {

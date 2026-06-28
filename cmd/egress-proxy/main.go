@@ -27,9 +27,9 @@ const (
 )
 
 type config struct {
-	Level        string `env:"COCOS_LOG_LEVEL" envAlternate:"AGENT_LOG_LEVEL" envDefault:"info"`
-	Port         string `env:"COCOS_PROXY_PORT"                envDefault:"3128"`
-	LogForwarder string `env:"LOG_FORWARDER_SOCKET"            envDefault:"/run/cocos/log.sock"`
+	Level        string `env:"ASB_LOG_LEVEL"          envAlternate:"AGENT_LOG_LEVEL" envDefault:"info"`
+	Port         string `env:"ASB_EGRESS_PROXY_PORT"  envDefault:"3128"`
+	LogForwarder string `env:"LOG_FORWARDER_SOCKET"   envDefault:"/run/agents-secure-binding/log.sock"`
 	Allowlist    string `env:"EGRESS_PROXY_ALLOWLIST"          envDefault:""`
 }
 

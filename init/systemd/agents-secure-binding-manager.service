@@ -1,0 +1,15 @@
+[Unit]
+Description=Agents Secure Binding Manager
+After=network.target
+
+[Service]
+ExecStart=agents-secure-binding-manager
+Restart=always
+RestartSec=5s
+EnvironmentFile=/etc/agents-secure-binding/agents-secure-binding-manager.env
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=agents-secure-binding-manager
+
+[Install]
+WantedBy=multi-user.target

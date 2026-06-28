@@ -171,7 +171,7 @@ func New(ctx context.Context, logger *slog.Logger, eventSvc events.Service, atte
 		vmpl:              vmlp,
 	}
 
-	workDir := filepath.Join(os.TempDir(), "cocos-oci")
+	workDir := filepath.Join(os.TempDir(), "agents-secure-binding-oci")
 	skopeoClient, err := oci.NewSkopeoClient(workDir)
 	if err != nil {
 		logger.Warn("failed to create Skopeo client", "error", err)
@@ -626,7 +626,7 @@ func (as *agentService) downloadAndDecryptOCIImage(ctx context.Context, source *
 	// CoCo Keyprovider will automatically handle decryption via ocicrypt
 	// Sanitize directory name to avoid Skopeo interpreting ':' as tag separator
 	sanitizedName := strings.ReplaceAll(filepath.Base(source.URL), ":", "_")
-	destDir := filepath.Join(os.TempDir(), "cocos-oci", "images", sanitizedName)
+	destDir := filepath.Join(os.TempDir(), "agents-secure-binding-oci", "images", sanitizedName)
 	if err := as.ociClient.PullAndDecrypt(ctx, ociSource, destDir); err != nil {
 		return nil, fmt.Errorf("failed to pull and decrypt OCI image: %w", err)
 	}
@@ -634,7 +634,7 @@ func (as *agentService) downloadAndDecryptOCIImage(ctx context.Context, source *
 	as.logger.Info("OCI image downloaded and decrypted", "dest", destDir)
 
 	// Extract algorithm file from OCI layers
-	extractDir := filepath.Join(os.TempDir(), "cocos-oci", "extracted", sanitizedName)
+	extractDir := filepath.Join(os.TempDir(), "agents-secure-binding-oci", "extracted", sanitizedName)
 	var algorithmPath string
 	var requirementsPath string
 	var err error

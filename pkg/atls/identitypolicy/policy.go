@@ -1,8 +1,9 @@
 // Copyright (c) Ultraviolet
 // SPDX-License-Identifier: Apache-2.0
 
-// Package identitypolicy validates deployment and agent identity policy inputs
-// that sit above the basic TLS and attestation channel-binding checks.
+// Package identitypolicy validates the Direct-Agent verifier acceptance rule:
+// the verified grant, session proof, accepted session binding, replay state,
+// and verifier-local policy must identify the same intended interaction.
 package identitypolicy
 
 import (

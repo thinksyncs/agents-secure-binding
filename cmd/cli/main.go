@@ -25,7 +25,7 @@ const (
 	envPrefixManagerGRPC = "MANAGER_GRPC_"
 	completion           = "completion"
 	filePermision        = 0o755
-	cocosDirectory       = ".cocos"
+	cacheDirectory       = ".agents-secure-binding"
 )
 
 type config struct {
@@ -35,10 +35,10 @@ type config struct {
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "cocos-cli [command]",
-		Short: "CLI application for CoCos Service API",
+		Use:   "agents-secure-binding-cli [command]",
+		Short: "CLI application for the Agents Secure Binding runtime API",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("CLI application for CoCos Service API\n\n")
+			fmt.Printf("CLI application for the Agents Secure Binding runtime API\n\n")
 			fmt.Printf("Usage:\n  %s [command]\n\n", cmd.CommandPath())
 			fmt.Printf("Available Commands:\n")
 
@@ -86,7 +86,7 @@ func main() {
 		return
 	}
 
-	directoryCachePath := path.Join(homePath, cocosDirectory)
+	directoryCachePath := path.Join(homePath, cacheDirectory)
 
 	if err := os.MkdirAll(directoryCachePath, filePermision); err != nil {
 		message := color.New(color.FgRed).Sprintf("failed to create directory %s : %s", directoryCachePath, err)

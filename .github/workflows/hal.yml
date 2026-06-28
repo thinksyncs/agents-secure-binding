@@ -39,11 +39,11 @@ jobs:
         run: |
           release_action="softprops/action-gh-"
           release_action="${release_action}release"
-          upstream_owner="ultravioletrs"
-          upstream_repo="${upstream_owner}/cocos"
+          checkout_key="repo"
+          checkout_key="${checkout_key}sitory:"
           tag_trigger="ta"
           tag_trigger="${tag_trigger}gs:"
 
           ! grep -R "$release_action" .github/workflows/hal.yml
-          ! grep -R "$upstream_repo" .github/workflows/hal.yml
+          ! grep -R "$checkout_key" .github/workflows/hal.yml
           ! grep -R "$tag_trigger" .github/workflows/hal.yml

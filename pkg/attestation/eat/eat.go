@@ -36,9 +36,9 @@ type EATClaims struct {
 	Submods map[string]interface{} `json:"submods,omitempty" cbor:"266,keyasint,omitempty"`
 
 	// Platform-specific extensions (custom claims)
-	SNPExtensions  *SNPExtensions  `json:"x-cocos-sevsnp,omitempty"`
-	TDXExtensions  *TDXExtensions  `json:"x-cocos-tdx,omitempty"`
-	VTPMExtensions *VTPMExtensions `json:"x-cocos-vtpm,omitempty"`
+	SNPExtensions  *SNPExtensions  `json:"x-asb-sevsnp,omitempty"`
+	TDXExtensions  *TDXExtensions  `json:"x-asb-tdx,omitempty"`
+	VTPMExtensions *VTPMExtensions `json:"x-asb-vtpm,omitempty"`
 
 	// Original binary report (for verification)
 	RawReport []byte `json:"raw_report,omitempty"`

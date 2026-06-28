@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/thinksyncs/agents-secure-binding/internal/errors"
+	"github.com/thinksyncs/agents-secure-binding/internal/runtime/netguard"
 	"github.com/thinksyncs/agents-secure-binding/pkg/atls"
 	"github.com/thinksyncs/agents-secure-binding/pkg/clients"
 	"github.com/thinksyncs/agents-secure-binding/pkg/tls"
@@ -20,8 +21,9 @@ import (
 )
 
 var (
-	errGrpcConnect = errors.New("failed to connect to grpc server")
-	errGrpcClose   = errors.New("failed to close grpc connection")
+	errGrpcConnect         = errors.New("failed to connect to grpc server")
+	errGrpcClose           = errors.New("failed to close grpc connection")
+	ErrPlaintextRemoteGRPC = errors.New("plaintext grpc requires unix socket, localhost, loopback, or TLS")
 )
 
 type Client interface {
@@ -106,6 +108,9 @@ func connect(cfg clients.ClientConfiguration) (*grpc.ClientConn, tls.Security, e
 		transportCreds, sec, err := loadTLSConfig(conf.ServerCAFile, conf.ClientCert, conf.ClientKey)
 		if err != nil {
 			return nil, security, err
+		}
+		if sec == tls.WithoutTLS && !netguard.PlaintextTargetAllowed(conf.URL) {
+			return nil, security, ErrPlaintextRemoteGRPC
 		}
 		opts = append(opts, grpc.WithTransportCredentials(transportCreds))
 		security = sec

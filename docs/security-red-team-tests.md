@@ -247,17 +247,17 @@ rejected, not accepted.
 Run the focused client red-team tests with:
 
 ```sh
-env GOCACHE=/tmp/go-build-cocos go test -count=1 ./pkg/clients
+env GOCACHE=/tmp/go-build-asb go test -count=1 ./pkg/clients
 ```
 
 For the broader security regression set, run:
 
 ```sh
-env GOCACHE=/tmp/go-build-cocos go test -count=1 ./pkg/agtp ./pkg/atls/identitypolicy ./pkg/atls/ea ./pkg/atls/eaattestation ./pkg/atls/internal_transport ./pkg/atls ./pkg/clients ./pkg/clients/grpc ./pkg/clients/http
+env GOCACHE=/tmp/go-build-asb go test -count=1 ./pkg/agtp ./pkg/atls/identitypolicy ./pkg/atls/ea ./pkg/atls/eaattestation ./pkg/atls/internal_transport ./pkg/atls ./pkg/clients ./pkg/clients/grpc ./pkg/clients/http
 ```
 
 Run the response-cache red-team tests with:
 
 ```sh
-env GOCACHE=/tmp/go-build-cocos go test -count=1 -run 'ResponseCachePolicyRedTeam' ./pkg/agtp
+env GOCACHE=/tmp/go-build-asb go test -count=1 -run 'ResponseCachePolicyRedTeam' ./pkg/agtp
 ```

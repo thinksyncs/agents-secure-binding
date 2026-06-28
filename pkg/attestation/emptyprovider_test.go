@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	cocosai "github.com/thinksyncs/agents-secure-binding"
+	asb "github.com/thinksyncs/agents-secure-binding"
 )
 
 func TestEmptyProvider_Attestation(t *testing.T) {
@@ -119,7 +119,7 @@ func TestEmptyProvider_VTpmAttestation(t *testing.T) {
 			got, err := p.VTpmAttestation(tt.vTpmNonce)
 
 			require.NoError(t, err)
-			assert.Equal(t, cocosai.EmbeddedAttestation, got)
+			assert.Equal(t, asb.EmbeddedAttestation, got)
 		})
 	}
 }

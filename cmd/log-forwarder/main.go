@@ -24,7 +24,7 @@ import (
 
 const (
 	svcName          = "log-forwarder"
-	socketPath       = "/run/cocos/log.sock"
+	socketPath       = "/run/agents-secure-binding/log.sock"
 	envPrefixCVMGRPC = "AGENT_CVM_GRPC_"
 )
 

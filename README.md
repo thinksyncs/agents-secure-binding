@@ -110,8 +110,9 @@ Covered in the current v0.4 evidence:
 - relay, replay, wrong-context, wrong-Agent, downgrade, stale-evidence,
   measurement-mismatch, and binding-parameter confusion checks;
 - dependency-free live-style harnesses for local TLS exporter binding, HTTP/2
-  connection reuse, TLS resumption replay rejection, malformed token corpora,
-  and deterministic acceptance invariants;
+  and gRPC connection reuse, TLS resumption replay rejection, malformed token
+  corpora, bounded fuzz smoke for compact JWT/JWS parsing, and deterministic
+  acceptance invariants;
 - route-assertion policy unit tests for the documented gateway boundary, with
   no runtime gateway mode.
 
@@ -122,10 +123,11 @@ bytes are used only in synthetic unit fixtures.
 Not yet validated as a full security claim:
 
 - real 0-RTT early-data transport behavior;
-- gRPC connection pooling;
+- broader gRPC deployment pooling beyond the local reuse harness;
 - runtime gateway wiring and a full gateway-routed network harness, if that
   profile is split out for separate implementation;
-- randomized fuzz/property generation for token and invariant paths;
+- long-running fuzz/property campaigns beyond the bounded token-parser smoke
+  target;
 - hardware-backed confidential-VM attestation replay coverage.
 
 See `docs/live-red-team-report.md` for the evidence matrix and
@@ -169,6 +171,12 @@ Focused Direct-Agent red-team check:
 GOTOOLCHAIN=go1.26.0+auto go test -v -race -count=1 \
   ./pkg/atls/identitypolicy \
   ./pkg/clients
+```
+
+Product security gate:
+
+```sh
+make product-security-gate
 ```
 
 Some client and red-team tests open local loopback listeners. Restricted

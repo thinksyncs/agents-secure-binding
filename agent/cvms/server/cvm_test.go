@@ -220,6 +220,22 @@ func TestAgentServer_Start(t *testing.T) {
 	}
 }
 
+func TestAgentServer_StartRejectsPlaintextPublicTCP(t *testing.T) {
+	logger, svc, _, pubKey := setupTest(t)
+	server := NewServer(logger, svc, "192.0.2.10:7001")
+
+	err := server.Start(agent.AgentConfig{}, agent.Computation{
+		ID:   "test-public-bind",
+		Name: "Public Bind Test",
+		Algorithm: agent.Algorithm{
+			Hash:    [32]byte{0x01},
+			UserKey: pubKey,
+		},
+	})
+
+	assert.ErrorIs(t, err, ErrPlaintextPublicAgentGRPC)
+}
+
 func TestAgentServer_Stop(t *testing.T) {
 	logger, svc, host, pubKey := setupTest(t)
 
@@ -514,5 +530,5 @@ func TestAgentServer_ConfigValidation(t *testing.T) {
 
 func TestConstants(t *testing.T) {
 	assert.Equal(t, "agent", svcName)
-	assert.Equal(t, "/run/cocos/agent.sock", defSvcGRPCSocket)
+	assert.Equal(t, "/run/agents-secure-binding/agent.sock", defSvcGRPCSocket)
 }

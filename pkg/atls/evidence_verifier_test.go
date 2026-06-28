@@ -13,7 +13,7 @@ import (
 	"github.com/google/go-tpm/legacy/tpm2"
 	"github.com/google/go-tpm/tpmutil"
 	eaattestation "github.com/thinksyncs/agents-secure-binding/pkg/atls/eaattestation"
-	cocosattestation "github.com/thinksyncs/agents-secure-binding/pkg/attestation"
+	asbattestation "github.com/thinksyncs/agents-secure-binding/pkg/attestation"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -33,12 +33,12 @@ func TestVerifyEvidenceBindingRejectsTDXReportDataMismatch(t *testing.T) {
 	report := make([]byte, 0x248)
 	copy(report[0x208:0x248], expected.ReportData[:])
 
-	if err := verifyEvidenceBinding(cocosattestation.TDX, report, expected); err != nil {
+	if err := verifyEvidenceBinding(asbattestation.TDX, report, expected); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	report[0x208] ^= 0xff
-	if err := verifyEvidenceBinding(cocosattestation.TDX, report, expected); err == nil {
+	if err := verifyEvidenceBinding(asbattestation.TDX, report, expected); err == nil {
 		t.Fatal("expected mismatched TDX report data to fail")
 	}
 }
@@ -54,14 +54,14 @@ func TestVerifyEvidenceBindingRejectsSNPReportDataMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := verifyEvidenceBinding(cocosattestation.SNP, report, expected); err != nil {
+	if err := verifyEvidenceBinding(asbattestation.SNP, report, expected); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	var wrong eaattestation.EvidenceBinding
 	copy(wrong.ReportData[:], expected.ReportData[:])
 	wrong.ReportData[0] ^= 0xff
-	if err := verifyEvidenceBinding(cocosattestation.SNP, report, wrong); err == nil {
+	if err := verifyEvidenceBinding(asbattestation.SNP, report, wrong); err == nil {
 		t.Fatal("expected mismatched SNP report data to fail")
 	}
 }
@@ -70,13 +70,13 @@ func TestVerifyEvidenceBindingRejectsVTPMNonceMismatch(t *testing.T) {
 	expected := testEvidenceBinding()
 	report := testVTPMReport(t, expected.Nonce[:])
 
-	if err := verifyEvidenceBinding(cocosattestation.VTPM, report, expected); err != nil {
+	if err := verifyEvidenceBinding(asbattestation.VTPM, report, expected); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	wrong := expected
 	wrong.Nonce[0] ^= 0xff
-	if err := verifyEvidenceBinding(cocosattestation.VTPM, report, wrong); err == nil {
+	if err := verifyEvidenceBinding(asbattestation.VTPM, report, wrong); err == nil {
 		t.Fatal("expected mismatched vTPM nonce to fail")
 	}
 }
@@ -85,13 +85,13 @@ func TestVerifyEvidenceBindingRejectsSNPvTPMQuoteNonceMismatch(t *testing.T) {
 	expected := testEvidenceBinding()
 	report := testSNPvTPMReport(t, expected)
 
-	if err := verifyEvidenceBinding(cocosattestation.SNPvTPM, report, expected); err != nil {
+	if err := verifyEvidenceBinding(asbattestation.SNPvTPM, report, expected); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	wrong := expected
 	wrong.Nonce[0] ^= 0xff
-	if err := verifyEvidenceBinding(cocosattestation.SNPvTPM, report, wrong); err == nil {
+	if err := verifyEvidenceBinding(asbattestation.SNPvTPM, report, wrong); err == nil {
 		t.Fatal("expected mismatched SNP-vTPM quote nonce to fail")
 	}
 }
@@ -102,7 +102,7 @@ func TestVerifyEvidenceBindingRejectsSNPvTPMReportDataMismatch(t *testing.T) {
 
 	wrong := expected
 	wrong.ReportData[0] ^= 0xff
-	if err := verifyEvidenceBinding(cocosattestation.SNPvTPM, report, wrong); err == nil {
+	if err := verifyEvidenceBinding(asbattestation.SNPvTPM, report, wrong); err == nil {
 		t.Fatal("expected mismatched SNP-vTPM report data to fail")
 	}
 }

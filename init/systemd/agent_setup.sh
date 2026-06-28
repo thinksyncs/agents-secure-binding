@@ -1,6 +1,6 @@
 #!/bin/sh
 
-WORK_DIR="/cocos"
+WORK_DIR="/agents-secure-binding"
 
 # IFACES are all network interfaces excluding lo (LOOPBACK) and sit interfaces 
 IFACES=$(ip link show | grep -vE 'LOOPBACK|sit*' | awk -F': ' '{print $2}')

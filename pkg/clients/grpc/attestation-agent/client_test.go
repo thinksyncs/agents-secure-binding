@@ -5,6 +5,7 @@ package attestation_agent
 
 import (
 	"context"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -19,7 +20,7 @@ import (
 
 func unixSocketPath(t *testing.T, name string) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "cocos-grpc-")
+	dir, err := os.MkdirTemp("", "asb-grpc-")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return filepath.Join(dir, name)
@@ -40,6 +41,13 @@ func (m *mockAttestationAgentServer) GetToken(ctx context.Context, req *aa.GetTo
 		return nil, m.tokenErr
 	}
 	return &aa.GetTokenResponse{Token: m.tokenResponse}, nil
+}
+
+func TestNewClientRejectsRemotePlaintextTCP(t *testing.T) {
+	client, err := NewClient("192.0.2.10:50002")
+
+	assert.Nil(t, client)
+	assert.True(t, errors.Is(err, ErrPlaintextRemoteAttestationAgent), "got %v", err)
 }
 
 func TestNewClientUnixSocket(t *testing.T) {

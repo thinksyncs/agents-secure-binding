@@ -1,6 +1,12 @@
 // Copyright (c) Ultraviolet
 // SPDX-License-Identifier: Apache-2.0
 
+// Package atls exposes the accepted TLS and exported-authenticator binding
+// helpers used by the Direct-Agent verifier surface.
+//
+// The package does not verify TLS itself. It relies on an accepted TLS 1.3
+// connection from the deployment TLS stack and derives profile binding inputs
+// from that connection and the accepted endpoint material.
 package atls
 
 import (

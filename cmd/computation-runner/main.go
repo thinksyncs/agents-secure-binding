@@ -26,12 +26,12 @@ import (
 
 const (
 	svcName    = "computation-runner"
-	socketPath = "/run/cocos/runner.sock"
+	socketPath = "/run/agents-secure-binding/runner.sock"
 )
 
 type config struct {
 	LogLevel     string `env:"RUNNER_LOG_LEVEL" envAlternate:"AGENT_LOG_LEVEL" envDefault:"debug"`
-	LogForwarder string `env:"LOG_FORWARDER_SOCKET" envDefault:"/run/cocos/log.sock"`
+	LogForwarder string `env:"LOG_FORWARDER_SOCKET" envDefault:"/run/agents-secure-binding/log.sock"`
 }
 
 func main() {

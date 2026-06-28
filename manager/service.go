@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	persistenceDir          = "/tmp/cocos"
+	persistenceDir          = "/tmp/agents-secure-binding"
 	agentLogLevelKey        = "AGENT_LOG_LEVEL"
 	agentCvmGrpcUrlKey      = "AGENT_CVM_GRPC_URL"
 	agentCvmClientCertKey   = "AGENT_CVM_GRPC_CLIENT_CERT"

@@ -1,18 +1,18 @@
 [Unit]
-Description=Cocos agent
+Description=Agents Secure Binding Agent
 After=network.target attestation-service.service log-forwarder.service computation-runner.service egress-proxy.service coco-keyprovider.service
 Requires=log-forwarder.service computation-runner.service egress-proxy.service coco-keyprovider.service
 Before=docker.service
 
 [Service]
-WorkingDirectory=/cocos
+WorkingDirectory=/agents-secure-binding
 Environment="HTTP_PROXY=http://localhost:3128"
 Environment="HTTPS_PROXY=http://localhost:3128"
-Environment="NO_PROXY=localhost,127.0.0.1,.local,/run/cocos/"
-StandardOutput=file:/var/log/cocos/agent.stdout
-StandardError=file:/var/log/cocos/agent.stderr
-EnvironmentFile=/etc/cocos/environment
-ExecStart=/usr/bin/cocos-agent --config-file=/etc/cocos/cocos-agent.conf
+Environment="NO_PROXY=localhost,127.0.0.1,.local,/run/agents-secure-binding/"
+StandardOutput=file:/var/log/agents-secure-binding/agent.stdout
+StandardError=file:/var/log/agents-secure-binding/agent.stderr
+EnvironmentFile=/etc/agents-secure-binding/environment
+ExecStart=/usr/bin/agents-secure-binding-agent --config-file=/etc/agents-secure-binding/agent.conf
 Restart=always
 RestartSec=5s
 

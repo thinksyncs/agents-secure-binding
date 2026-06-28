@@ -60,6 +60,14 @@ func TestNewClient(t *testing.T) {
 			err:     nil,
 		},
 		{
+			name: "Fail without TLS to remote target",
+			cfg: clients.StandardClientConfig{
+				URL: "agent.example.com:7001",
+			},
+			wantErr: true,
+			err:     ErrPlaintextRemoteGRPC,
+		},
+		{
 			name: "Success with TLS",
 			cfg: clients.StandardClientConfig{
 				URL:          "localhost:7001",

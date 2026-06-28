@@ -43,7 +43,7 @@ import (
 const (
 	svcName          = "agent"
 	envPrefixCVMGRPC = "AGENT_CVM_GRPC_"
-	storageDir       = "/var/lib/cocos/agent"
+	storageDir       = "/var/lib/agents-secure-binding/agent"
 )
 
 type config struct {
@@ -57,7 +57,7 @@ type config struct {
 	AgentOSBuild             string `env:"AGENT_OS_BUILD"               envDefault:"UVC"`
 	AgentOSDistro            string `env:"AGENT_OS_DISTRO"              envDefault:"UVC"`
 	AgentOSType              string `env:"AGENT_OS_TYPE"                envDefault:"UVC"`
-	AttestationServiceSocket string `env:"ATTESTATION_SERVICE_SOCKET" envDefault:"/run/cocos/attestation.sock"`
+	AttestationServiceSocket string `env:"ATTESTATION_SERVICE_SOCKET" envDefault:"/run/agents-secure-binding/attestation.sock"`
 }
 
 func main() {
@@ -92,7 +92,7 @@ func main() {
 		return
 	}
 
-	logClient, err := logclient.NewClient("/run/cocos/log.sock")
+	logClient, err := logclient.NewClient("/run/agents-secure-binding/log.sock")
 	if err != nil {
 		logger.Warn(fmt.Sprintf("failed to create log client: %s. Logging will be local only until service is available.", err))
 	} else {
@@ -191,7 +191,7 @@ func main() {
 	}
 	defer attClient.Close()
 
-	runnerClient, err := runnerclient.NewClient("/run/cocos/runner.sock")
+	runnerClient, err := runnerclient.NewClient("/run/agents-secure-binding/runner.sock")
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to create runner client: %s", err))
 		exitCode = 1
@@ -221,7 +221,7 @@ func main() {
 	}
 
 	// Create ingress proxy server
-	backendURL, err := url.Parse("unix:///run/cocos/agent.sock")
+	backendURL, err := url.Parse("unix:///run/agents-secure-binding/agent.sock")
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to parse backend URL: %s", err))
 		exitCode = 1

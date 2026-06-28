@@ -12,7 +12,7 @@ import (
 	"github.com/google/go-tpm-tools/proto/attest"
 	"github.com/google/go-tpm/legacy/tpm2"
 	eaattestation "github.com/thinksyncs/agents-secure-binding/pkg/atls/eaattestation"
-	cocosattestation "github.com/thinksyncs/agents-secure-binding/pkg/attestation"
+	asbattestation "github.com/thinksyncs/agents-secure-binding/pkg/attestation"
 	"github.com/thinksyncs/agents-secure-binding/pkg/attestation/azure"
 	"github.com/thinksyncs/agents-secure-binding/pkg/attestation/eat"
 	"github.com/thinksyncs/agents-secure-binding/pkg/attestation/tdx"
@@ -56,18 +56,18 @@ func (v *policyEvidenceVerifier) VerifyEvidence(evidence []byte, expected eaatte
 	return verifier.VerifyWithCoRIM(claims.RawReport, manifest)
 }
 
-func verifyEvidenceBinding(platformType cocosattestation.PlatformType, report []byte, expected eaattestation.EvidenceBinding) error {
+func verifyEvidenceBinding(platformType asbattestation.PlatformType, report []byte, expected eaattestation.EvidenceBinding) error {
 	switch platformType {
-	case cocosattestation.TDX:
+	case asbattestation.TDX:
 		return verifyTDXReportData(report, expected.ReportData[:])
-	case cocosattestation.SNP, cocosattestation.Azure:
+	case asbattestation.SNP, asbattestation.Azure:
 		return verifySNPReportData(report, expected.ReportData[:])
-	case cocosattestation.SNPvTPM:
+	case asbattestation.SNPvTPM:
 		if err := verifyVTPMNonce(report, expected.Nonce[:]); err != nil {
 			return err
 		}
 		return verifySNPvTPMReportData(report, expected.ReportData[:])
-	case cocosattestation.VTPM:
+	case asbattestation.VTPM:
 		return verifyVTPMNonce(report, expected.Nonce[:])
 	default:
 		return fmt.Errorf("atls: unsupported platform type for binding verification: %d", platformType)
@@ -170,30 +170,30 @@ func loadCoRIM(path string) (*corim.UnsignedCorim, error) {
 	return &uc, nil
 }
 
-func platformTypeFromClaims(name string) cocosattestation.PlatformType {
+func platformTypeFromClaims(name string) asbattestation.PlatformType {
 	switch name {
 	case "SNP":
-		return cocosattestation.SNP
+		return asbattestation.SNP
 	case "TDX":
-		return cocosattestation.TDX
+		return asbattestation.TDX
 	case "vTPM":
-		return cocosattestation.VTPM
+		return asbattestation.VTPM
 	case "SNP-vTPM":
-		return cocosattestation.SNPvTPM
+		return asbattestation.SNPvTPM
 	case "Azure":
-		return cocosattestation.Azure
+		return asbattestation.Azure
 	default:
-		return cocosattestation.NoCC
+		return asbattestation.NoCC
 	}
 }
 
-func platformVerifier(platformType cocosattestation.PlatformType) (cocosattestation.Verifier, error) {
+func platformVerifier(platformType asbattestation.PlatformType) (asbattestation.Verifier, error) {
 	switch platformType {
-	case cocosattestation.SNP, cocosattestation.SNPvTPM, cocosattestation.VTPM:
+	case asbattestation.SNP, asbattestation.SNPvTPM, asbattestation.VTPM:
 		return vtpm.NewVerifier(nil), nil
-	case cocosattestation.Azure:
+	case asbattestation.Azure:
 		return azure.NewVerifier(nil), nil
-	case cocosattestation.TDX:
+	case asbattestation.TDX:
 		return tdx.NewVerifier(), nil
 	default:
 		return nil, fmt.Errorf("atls: unsupported platform type: %d", platformType)

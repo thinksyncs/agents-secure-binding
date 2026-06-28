@@ -1,11 +1,11 @@
 [Unit]
-Description=Cocos Egress Proxy Service
+Description=Agents Secure Binding Egress Proxy Service
 After=network.target
 
 [Service]
-EnvironmentFile=/etc/cocos/environment
-Environment="COCOS_LOG_LEVEL=debug"
-ExecStart=/usr/bin/egress-proxy --port=3128
+EnvironmentFile=/etc/agents-secure-binding/environment
+Environment="ASB_LOG_LEVEL=debug"
+ExecStart=/usr/bin/agents-secure-binding-egress-proxy --port=3128
 Restart=always
 RestartSec=5
 User=root

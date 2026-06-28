@@ -12,6 +12,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/thinksyncs/agents-secure-binding/internal/runtime/netguard"
 	"github.com/thinksyncs/agents-secure-binding/internal/runtime/server"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
@@ -22,6 +23,8 @@ import (
 )
 
 type ServiceRegister func(srv *grpc.Server)
+
+var ErrPlaintextPublicGRPC = fmt.Errorf("runtime grpc: plaintext listener requires localhost, loopback, or TLS")
 
 type runtimeServer struct {
 	server.Base
@@ -39,13 +42,18 @@ func NewServer(ctx context.Context, cancel context.CancelFunc, name string, conf
 }
 
 func (s *runtimeServer) Start() error {
+	tlsConfigured := s.Config.CertFile != "" || s.Config.KeyFile != ""
+	if !tlsConfigured && !netguard.PlaintextBindAllowed(s.Config.Host) {
+		return fmt.Errorf("%w: %s", ErrPlaintextPublicGRPC, s.Address)
+	}
+
 	listener, err := net.Listen("tcp", s.Address)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", s.Address, err)
 	}
 
 	creds := grpc.Creds(insecure.NewCredentials())
-	if s.Config.CertFile != "" || s.Config.KeyFile != "" {
+	if tlsConfigured {
 		creds, err = s.tlsCredentials()
 		if err != nil {
 			_ = listener.Close()

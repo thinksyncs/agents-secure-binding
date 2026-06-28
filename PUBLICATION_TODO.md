@@ -17,8 +17,70 @@ Latest recorded remote implementation checkpoint:
 | `4c3e4fc57cca52a6423394fe2292d620f957c962` | `CI` | `28181903677` | Success | 2026-06-25 UTC |
 | `4c3e4fc57cca52a6423394fe2292d620f957c962` | `Security Red Team` | `28181903553` | Success | 2026-06-25 UTC |
 
-This checkpoint is not a full security proof. New commits need their own CI and
-red-team run before a public release.
+Local pre-publication gate after the README/module-path/runtime hardening work:
+
+| Commit | Scope | Command | Result | Date |
+| --- | --- | --- | --- | --- |
+| `7c29c48451cea5aeedda42171d28b67e67712a92` plus staged changes | Security red-team gate | `GOTOOLCHAIN=go1.26.0+auto go test -v -race -count=1 ./pkg/agtp ./pkg/atls/identitypolicy ./pkg/clients` | Success | 2026-06-28 14:11 UTC |
+| unsigned local worktree after Beads/product-readiness changes | Product-readiness gate | `GOCACHE=/private/tmp/asb-gocache make product-security-gate` | Success; `govulncheck` reported 0 called vulnerabilities | 2026-06-28 16:25 UTC |
+
+This checkpoint is not a full security proof. The remote CI and Security Red
+Team run IDs above are not updated for the staged publication-prep changes
+until those changes are signed, committed, pushed, and re-run on GitHub Actions.
+The product gate is scoped to the Direct-Agent core and reference adapters.
+Inherited agent/manager runtime integration tests include VM, sudo, loopback
+listener, and Python package-install paths and remain separate integration
+coverage.
+
+## Dependency Alert Status
+
+GitHub Dependabot reports no open alerts for the default branch. The 10 alerts
+reported during the publication-prep push are fixed as of 2026-06-28 13:49 UTC.
+
+Current dependency graph checks:
+
+- `google.golang.org/grpc` resolves to `v1.80.0`;
+- `github.com/go-jose/go-jose/v4` resolves to `v4.1.4`;
+- `go.opentelemetry.io/otel/sdk` resolves to `v1.43.0`;
+- `go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp` resolves to
+  `v1.43.0`;
+- `github.com/docker/docker` is not present in the current module graph.
+
+## Runtime Plaintext Transport Classification
+
+The remaining `insecure.NewCredentials()` and OTLP `WithInsecure()` uses are
+classified as follows:
+
+| Area | Classification | Guardrail |
+| --- | --- | --- |
+| Unix-socket service clients for log, attestation-service, and computation-runner | Accepted local IPC | Target is constructed as `unix://...`; no TCP fallback. |
+| aTLS gRPC client path in `pkg/clients/grpc` | Accepted wrapper use | gRPC receives plaintext credentials only because the custom dialer supplies the accepted aTLS connection. |
+| Standard gRPC client path in `pkg/clients/grpc` | Fail-closed for remote plaintext | Plaintext is accepted only for Unix socket, `localhost`, or loopback targets. Remote plaintext requires TLS or aTLS. |
+| Agent CVM gRPC server | Fail-closed for public plaintext | Plaintext TCP listeners are accepted only on loopback. Unix sockets remain accepted. |
+| Runtime gRPC server wrapper | Fail-closed for public plaintext | Listener without TLS is accepted only for `localhost` or loopback bind hosts. |
+| CC attestation-agent clients | Fail-closed for remote plaintext | Plaintext TCP is accepted only on loopback. |
+| OTLP/HTTP tracing exporter | Fail-closed for remote HTTP | `http://` is accepted only for `localhost` or loopback collectors. Remote collectors must use `https://`. |
+
+## Experimental Adapter Boundary
+
+`pkg/agtp` and its subpackages are retained as experimental reference adapters
+for JWT/JWS, CWT/COSE, response-cache, diversion-policy, and gateway-route
+experiments. They are not the Direct-Agent core verifier API.
+
+Public API documentation now fixes this boundary:
+
+- Direct-Agent core: `pkg/clients`, `pkg/atls`, and
+  `pkg/atls/identitypolicy`;
+- experimental reference adapters: `pkg/agtp`, `pkg/agtp/gatewayroute`, and
+  `pkg/agtp/diversionpolicy`;
+- out of scope for this repository release: runtime gateway-routed mode.
+
+Future cleanup should move `pkg/agtp` under an `experimental/` tree or split it
+into a separate module before making gateway-routed runtime claims.
+
+Do not describe this repository as implementing every binding profile from the
+draft. Product claims should say that it implements an experimental
+Direct-Agent binding profile based on the core acceptance rules.
 
 ## Inherited Runtime Risk Classification
 
@@ -38,7 +100,8 @@ The v0.4 red-team evidence is useful but limited. Before stronger public
 claims, add or explicitly defer:
 
 - real 0-RTT early-data transport coverage;
-- gRPC connection-pooling coverage;
+- broader gRPC deployment pooling beyond the local reuse harness;
 - full gateway-routed network harness;
-- randomized fuzz/property generation for token and invariant paths;
+- long-running randomized fuzz/property generation beyond the bounded
+  token-parser smoke target;
 - hardware-backed confidential-VM attestation replay coverage.

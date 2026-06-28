@@ -631,7 +631,7 @@ func TestAGTPObservedIdentityRedTeamRejectsAgentThreats(t *testing.T) {
 				ThreadID:             "thread-abc",
 				DelegationID:         "delegation-789",
 				Scopes:               []string{"orders:read", "tool:http.fetch"},
-				Resources:            []string{"urn:cocos:dataset:orders"},
+				Resources:            []string{"urn:asb:dataset:orders"},
 				AuthorizationDetails: []string{"purpose:monthly-report"},
 			},
 		}
@@ -656,7 +656,7 @@ func TestAGTPObservedIdentityRedTeamRejectsAgentThreats(t *testing.T) {
 			"thread_id":             "thread-abc",
 			"delegation_id":         "delegation-789",
 			"scopes":                []string{"orders:read", "tool:http.fetch"},
-			"resources":             []string{"urn:cocos:dataset:orders"},
+			"resources":             []string{"urn:asb:dataset:orders"},
 			"authorization_details": []string{"purpose:monthly-report"},
 		}
 	}
@@ -766,7 +766,7 @@ func TestAGTPObservedIdentityRedTeamRejectsAgentThreats(t *testing.T) {
 		{
 			name: "data exfiltration target cannot satisfy resource policy",
 			mutateGrant: func(grant jwt.MapClaims) {
-				grant["resources"] = []string{"urn:cocos:dataset:customer-secrets"}
+				grant["resources"] = []string{"urn:asb:dataset:customer-secrets"}
 			},
 			wantErr: identitypolicy.ErrMismatch,
 		},

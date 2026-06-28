@@ -97,7 +97,7 @@ func TestAgentClientIntegration(t *testing.T) {
 			serverRunning: false,
 			config: clients.AttestedClientConfig{
 				StandardClientConfig: clients.StandardClientConfig{
-					URL:     "",
+					URL:     testServer.listenAddr,
 					Timeout: 1,
 				},
 			},

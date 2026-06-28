@@ -1,23 +1,23 @@
 [Unit]
-Description=Cocos Attestation Service
+Description=Agents Secure Binding Attestation Service
 After=network.target
 Wants=attestation-agent.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/attestation-service
+ExecStart=/usr/bin/agents-secure-binding-attestation-service
 Restart=always
 RestartSec=5
-StandardOutput=file:/var/log/cocos/attestation-service.stdout
-StandardError=file:/var/log/cocos/attestation-service.stderr
+StandardOutput=file:/var/log/agents-secure-binding/attestation-service.stdout
+StandardError=file:/var/log/agents-secure-binding/attestation-service.stderr
 Environment=ATTESTATION_LOG_LEVEL=debug
-Environment=ATTESTATION_SERVICE_SOCKET=/run/cocos/attestation.sock
+Environment=ATTESTATION_SERVICE_SOCKET=/run/agents-secure-binding/attestation.sock
 Environment=ATTESTATION_VMPL=2
 Environment=ATTESTATION_EAT_FORMAT=CBOR
 # CC Attestation-Agent backend (enabled by default for sample attestation)
 Environment=USE_CC_ATTESTATION_AGENT=true
 Environment=CC_AGENT_ADDRESS=127.0.0.1:50002
-ExecStartPre=/cocos_init/attestation_setup.sh
+ExecStartPre=/agents-secure-binding-init/attestation_setup.sh
 
 [Install]
 WantedBy=multi-user.target

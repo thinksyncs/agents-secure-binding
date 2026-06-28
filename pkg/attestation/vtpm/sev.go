@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	cocosDirectory     = "/cocos"
+	certCacheDirectory = "/agents-secure-binding"
 	arkAskBundleName   = "ask_ark.pem"
 	vcekName           = "vcek.pem"
 	SEVNonce           = 64
@@ -56,8 +56,8 @@ func fetchSEVAttestation(reportDataSlice []byte, vmpl uint) ([]byte, error) {
 	}
 
 	homePath, _ := os.UserHomeDir()
-	vcekPath := path.Join(homePath, cocosDirectory, fmt.Sprintf("%d", quoteProto.Product.Name), vcekName)
-	arkAskBundlePath := path.Join(homePath, cocosDirectory, fmt.Sprintf("%d", quoteProto.Product.Name), arkAskBundleName)
+	vcekPath := path.Join(homePath, certCacheDirectory, fmt.Sprintf("%d", quoteProto.Product.Name), vcekName)
+	arkAskBundlePath := path.Join(homePath, certCacheDirectory, fmt.Sprintf("%d", quoteProto.Product.Name), arkAskBundleName)
 
 	vcekBytes, err := os.ReadFile(vcekPath)
 	if err != nil {
@@ -146,8 +146,8 @@ func FetchSEVCertificates(vmpl uint) error {
 
 	homePath, _ := os.UserHomeDir()
 
-	vcekPath := path.Join(homePath, cocosDirectory, fmt.Sprintf("%d", quoteProto.Product.Name), vcekName)
-	arkAskBundlePath := path.Join(homePath, cocosDirectory, fmt.Sprintf("%d", quoteProto.Product.Name), arkAskBundleName)
+	vcekPath := path.Join(homePath, certCacheDirectory, fmt.Sprintf("%d", quoteProto.Product.Name), vcekName)
+	arkAskBundlePath := path.Join(homePath, certCacheDirectory, fmt.Sprintf("%d", quoteProto.Product.Name), arkAskBundleName)
 
 	vcekPem := derToPem(result.CertificateChain.VcekCert)
 	askPem := derToPem(result.CertificateChain.AskCert)

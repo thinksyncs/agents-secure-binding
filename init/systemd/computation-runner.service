@@ -1,18 +1,18 @@
 [Unit]
-Description=Cocos Computation Runner
+Description=Agents Secure Binding Computation Runner
 After=network.target log-forwarder.service
-Before=cocos-agent.service
+Before=agents-secure-binding-agent.service
 Requires=log-forwarder.service
 
 [Service]
-WorkingDirectory=/cocos
-StandardOutput=file:/var/log/cocos/runner.stdout
-StandardError=file:/var/log/cocos/runner.stderr
-EnvironmentFile=/etc/cocos/environment
+WorkingDirectory=/agents-secure-binding
+StandardOutput=file:/var/log/agents-secure-binding/runner.stdout
+StandardError=file:/var/log/agents-secure-binding/runner.stderr
+EnvironmentFile=/etc/agents-secure-binding/environment
 Environment="HTTP_PROXY=http://localhost:3128"
 Environment="HTTPS_PROXY=http://localhost:3128"
-Environment="NO_PROXY=localhost,127.0.0.1,.local,/run/cocos/"
-ExecStart=/usr/bin/computation-runner --socket-path=/run/cocos/runner.sock
+Environment="NO_PROXY=localhost,127.0.0.1,.local,/run/agents-secure-binding/"
+ExecStart=/usr/bin/agents-secure-binding-computation-runner --socket-path=/run/agents-secure-binding/runner.sock
 Restart=always
 RestartSec=5s
 

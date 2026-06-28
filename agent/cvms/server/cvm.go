@@ -13,6 +13,7 @@ import (
 	"github.com/thinksyncs/agents-secure-binding/agent"
 	agentgrpc "github.com/thinksyncs/agents-secure-binding/agent/api/grpc"
 	"github.com/thinksyncs/agents-secure-binding/agent/auth"
+	"github.com/thinksyncs/agents-secure-binding/internal/runtime/netguard"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -23,8 +24,10 @@ import (
 
 const (
 	svcName          = "agent"
-	defSvcGRPCSocket = "/run/cocos/agent.sock"
+	defSvcGRPCSocket = "/run/agents-secure-binding/agent.sock"
 )
+
+var ErrPlaintextPublicAgentGRPC = fmt.Errorf("agent grpc: plaintext listener requires unix socket or loopback")
 
 type AgentServer interface {
 	Start(cfg agent.AgentConfig, cmp agent.Computation) error
@@ -89,6 +92,10 @@ func (as *agentServer) Start(cfg agent.AgentConfig, cmp agent.Computation) error
 		_ = os.Remove(socketPath)
 		listener, err = net.Listen("unix", socketPath)
 	} else {
+		host, _, splitErr := net.SplitHostPort(socketPath)
+		if splitErr != nil || !netguard.PlaintextBindAllowed(host) {
+			return fmt.Errorf("%w: %s", ErrPlaintextPublicAgentGRPC, socketPath)
+		}
 		listener, err = net.Listen("tcp", socketPath)
 	}
 

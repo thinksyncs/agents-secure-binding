@@ -1,8 +1,12 @@
 // Copyright (c) Ultraviolet
 // SPDX-License-Identifier: Apache-2.0
 
-// Package diversionpolicy evaluates static semantic-diversion rules for the
-// AGTP hardware-aware TLS profile. It is intentionally not a routing engine.
+// Package diversionpolicy is an experimental reference adapter for static
+// semantic-diversion policy checks. It is intentionally not a routing engine.
+//
+// Direct-Agent runtime verification does not depend on this package. Callers
+// that use it are responsible for supplying verifier-local expected policy;
+// peer-provided AGTP or gateway metadata must not become expected policy.
 package diversionpolicy
 
 import (

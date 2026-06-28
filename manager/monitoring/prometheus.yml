@@ -12,7 +12,7 @@ alerting:
           - alertmanager:9093
 
 scrape_configs:
-  - job_name: 'cocos-manager'
+  - job_name: 'agents-secure-binding-manager'
     static_configs:
       - targets: ['192.168.100.4:7003']  # Adjust to your manager http port
     metrics_path: /metrics

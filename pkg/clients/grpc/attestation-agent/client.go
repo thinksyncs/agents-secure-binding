@@ -8,10 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/thinksyncs/agents-secure-binding/internal/errors"
 	aa "github.com/thinksyncs/agents-secure-binding/internal/proto/attestation-agent"
+	"github.com/thinksyncs/agents-secure-binding/internal/runtime/netguard"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+var ErrPlaintextRemoteAttestationAgent = errors.New("plaintext attestation-agent client requires unix socket or loopback")
 
 // Client provides access to attestation-agent services.
 type Client interface {
@@ -31,6 +35,9 @@ func NewClient(address string) (Client, error) {
 	var target string
 	// If address contains ":", it's a TCP address, otherwise it's a Unix socket
 	if strings.Contains(address, ":") {
+		if !netguard.PlaintextTargetAllowed(address) {
+			return nil, ErrPlaintextRemoteAttestationAgent
+		}
 		target = address
 	} else {
 		target = "unix://" + address

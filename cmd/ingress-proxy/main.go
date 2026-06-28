@@ -31,8 +31,8 @@ const (
 )
 
 type config struct {
-	LogLevel string `env:"COCOS_LOG_LEVEL" envAlternate:"AGENT_LOG_LEVEL" envDefault:"info"`
-	Backend  string `env:"COCOS_INGRESS_BACKEND"           envDefault:"http://localhost:7001"`
+	LogLevel string `env:"ASB_LOG_LEVEL"       envAlternate:"AGENT_LOG_LEVEL" envDefault:"info"`
+	Backend  string `env:"ASB_INGRESS_BACKEND" envDefault:"http://localhost:7001"`
 
 	// ATLS Config
 	CAUrl         string `env:"AGENT_CVM_CA_URL"             envDefault:""`
@@ -42,7 +42,7 @@ type config struct {
 	AgentOSBuild  string `env:"AGENT_OS_BUILD"               envDefault:"UVC"`
 	AgentOSDistro string `env:"AGENT_OS_DISTRO"              envDefault:"UVC"`
 	AgentOSType   string `env:"AGENT_OS_TYPE"                envDefault:"UVC"`
-	LogForwarder  string `env:"LOG_FORWARDER_SOCKET"         envDefault:"/run/cocos/log.sock"`
+	LogForwarder  string `env:"LOG_FORWARDER_SOCKET"         envDefault:"/run/agents-secure-binding/log.sock"`
 }
 
 func main() {
@@ -136,7 +136,7 @@ func run(cfg config) error {
 
 	if ccPlatform != attestation.NoCC {
 		// Create attestation client
-		attClient, err := attestation_client.NewClient("/run/cocos/attestation.sock")
+		attClient, err := attestation_client.NewClient("/run/agents-secure-binding/attestation.sock")
 		if err != nil {
 			return fmt.Errorf("failed to create attestation client: %w", err)
 		}

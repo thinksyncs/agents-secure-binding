@@ -13,11 +13,11 @@ import (
 
 	"github.com/thinksyncs/agents-secure-binding/pkg/atls/ea"
 	eaattestation "github.com/thinksyncs/agents-secure-binding/pkg/atls/eaattestation"
-	cocosattestation "github.com/thinksyncs/agents-secure-binding/pkg/attestation"
+	asbattestation "github.com/thinksyncs/agents-secure-binding/pkg/attestation"
 	attestationclient "github.com/thinksyncs/agents-secure-binding/pkg/clients/grpc/attestation"
 )
 
-// CertificateProvider is kept for compatibility with existing cocos call sites.
+// CertificateProvider builds leaf extensions for accepted aTLS call sites.
 // In the EA-based implementation it provides the leaf certificate-entry extensions
 // carried in the exported authenticator instead of generating TLS certificates.
 type CertificateProvider interface {
@@ -26,14 +26,14 @@ type CertificateProvider interface {
 
 type provider struct {
 	attClient    attestationclient.Client
-	platformType cocosattestation.PlatformType
+	platformType asbattestation.PlatformType
 }
 
-func NewProvider(attClient attestationclient.Client, platformType cocosattestation.PlatformType, _ string, _ string, _ any) (CertificateProvider, error) {
+func NewProvider(attClient attestationclient.Client, platformType asbattestation.PlatformType, _ string, _ string, _ any) (CertificateProvider, error) {
 	if attClient == nil {
 		return nil, fmt.Errorf("atls: missing attestation client")
 	}
-	if platformType == cocosattestation.NoCC {
+	if platformType == asbattestation.NoCC {
 		return nil, fmt.Errorf("atls: confidential computing platform not available")
 	}
 	return &provider{

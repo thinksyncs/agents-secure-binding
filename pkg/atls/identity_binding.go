@@ -18,12 +18,18 @@ import (
 // IdentityBindingFromConnectionState derives identity-policy binding values
 // from the accepted TLS session and aTLS validation result.
 func IdentityBindingFromConnectionState(st *tls.ConnectionState, validation *ea.ValidationResult) (identitypolicy.Binding, error) {
+	if st == nil {
+		return identitypolicy.Binding{}, fmt.Errorf("atls: missing TLS connection state")
+	}
+	if !st.HandshakeComplete {
+		return identitypolicy.Binding{}, fmt.Errorf("atls: TLS handshake is not complete")
+	}
+	if st.Version != tls.VersionTLS13 {
+		return identitypolicy.Binding{}, fmt.Errorf("atls: expected TLS 1.3 connection")
+	}
 	binding, err := internaltransport.ExpectedIdentityBinding(validation)
 	if err != nil {
 		return identitypolicy.Binding{}, err
-	}
-	if st == nil {
-		return identitypolicy.Binding{}, fmt.Errorf("atls: missing TLS connection state")
 	}
 	exported, _, err := eaattestation.ExportAttestationValue(st, eaattestation.ExporterLabelAttestation, validation.Context)
 	if err != nil {

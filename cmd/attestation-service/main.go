@@ -31,7 +31,7 @@ import (
 
 const (
 	svcName    = "attestation-service"
-	socketPath = "/run/cocos/attestation.sock"
+	socketPath = "/run/agents-secure-binding/attestation.sock"
 )
 
 type config struct {
@@ -42,7 +42,7 @@ type config struct {
 	AgentOSDistro         string `env:"AGENT_OS_DISTRO"          envDefault:"UVC"`
 	AgentOSType           string `env:"AGENT_OS_TYPE"            envDefault:"UVC"`
 	EATFormat             string `env:"ATTESTATION_EAT_FORMAT"   envDefault:"CBOR"` // JWT or CBOR
-	EATIssuer             string `env:"ATTESTATION_EAT_ISSUER"   envDefault:"cocos-attestation-service"`
+	EATIssuer             string `env:"ATTESTATION_EAT_ISSUER"   envDefault:"agents-secure-binding-attestation-service"`
 	UseCCAttestationAgent bool   `env:"USE_CC_ATTESTATION_AGENT" envDefault:"false"`
 	CCAgentAddress        string `env:"CC_AGENT_ADDRESS"         envDefault:"127.0.0.1:50002"`
 
@@ -86,7 +86,7 @@ func main() {
 	logger.Info("[ATTESTATION-SERVICE] Starting up - log forwarding enabled")
 
 	// Connect to log client for gRPC forwarding
-	logClient, err := logclient.NewClient("/run/cocos/log.sock")
+	logClient, err := logclient.NewClient("/run/agents-secure-binding/log.sock")
 	if err != nil {
 		logger.Warn(fmt.Sprintf("failed to create log client: %s. Logging will be local only until service is available.", err))
 	} else {

@@ -25,4 +25,4 @@ AGENT_GRPC_HOST=$(ip -4 addr show $DEFAULT_IFACE | grep inet | awk '{print $2}' 
 
 export AGENT_GRPC_HOST
 
-exec /bin/cocos-agent
+exec /bin/agents-secure-binding-agent

@@ -270,13 +270,13 @@ func TestValidateAcceptsPrintablePolicyValues(t *testing.T) {
 		},
 		Expected: Values{
 			Service:   "https://service.example.com/a?env=prod&tenant=a",
-			Resources: []string{"urn:cocos:resource:orders#read"},
+			Resources: []string{"urn:asb:resource:orders#read"},
 		},
 	}
 
 	observed := Values{
 		Service:   "https://service.example.com/a?env=prod&tenant=a",
-		Resources: []string{"urn:cocos:resource:orders#read"},
+		Resources: []string{"urn:asb:resource:orders#read"},
 	}
 
 	if err := Validate(policy, observed); err != nil {

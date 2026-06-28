@@ -31,7 +31,7 @@ const (
 	SignatureTimestampMetadataKey = "signature-timestamp"
 	SignatureNonceMetadataKey     = "signature-nonce"
 
-	signaturePayloadVersion = "cocos-agent-auth-v1"
+	signaturePayloadVersion = "agents-secure-binding-agent-auth-v1"
 	maxSignatureAge         = 5 * time.Minute
 	maxSignatureFutureSkew  = time.Minute
 
