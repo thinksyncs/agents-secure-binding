@@ -328,6 +328,32 @@ func TestValidateRejectsFreeFormIntentReference(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsNonCanonicalSemanticReferences(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{name: "natural language without spaces", value: "セリフ配布"},
+		{name: "alias without namespace", value: "monthly-settlement"},
+		{name: "empty namespace", value: ":orders:settle"},
+		{name: "empty reference", value: "intent:"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			policy := Policy{
+				Require:  Requirements{L5: true},
+				Expected: Values{IntentRef: "urn:agtp:intent:orders:settle:v1"},
+			}
+
+			err := Validate(policy, Values{IntentRef: tt.value})
+			if !errors.Is(err, ErrUnsafeValue) {
+				t.Fatalf("Validate() error = %v, want %v", err, ErrUnsafeValue)
+			}
+		})
+	}
+}
+
 func TestValidateRejectsMismatchedCapabilityReference(t *testing.T) {
 	policy := Policy{
 		Require:  Requirements{L6: true},

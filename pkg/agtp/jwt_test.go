@@ -497,6 +497,19 @@ func TestVerifySessionIdentityJWTAcceptsStrictSemanticAuthorization(t *testing.T
 	}
 }
 
+func TestVerifySessionIdentityJWTRejectsNaturalLanguageSemanticReference(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	grantClaims := testDefaultGrantClaims(now)
+	grantClaims["intent_ref"] = "セリフ配布"
+	grantToken := signTestJWT(t, "manager-key", []byte("manager-secret"), grantClaims)
+	bindingToken := signTestJWT(t, "agent-key-1", []byte("agent-secret"), testDefaultBindingClaims(now, IdentityGrantHash(grantToken)))
+
+	_, err := VerifySessionIdentityJWT(grantToken, bindingToken, testSessionIdentityOptions(now))
+	if !errors.Is(err, identitypolicy.ErrUnsafeValue) {
+		t.Fatalf("VerifySessionIdentityJWT() error = %v, want %v", err, identitypolicy.ErrUnsafeValue)
+	}
+}
+
 func TestVerifySessionIdentityJWTRejectsStrictSemanticAuthorizationDrift(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	grantClaims := testDefaultGrantClaims(now)

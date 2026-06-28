@@ -165,6 +165,173 @@ func TestAGTPObservedIdentityAcceptsManagerIssuedGrantE2E(t *testing.T) {
 	}
 }
 
+func TestAGTPObservedIdentityKeepsNaturalLanguageOutsideSemanticReference(t *testing.T) {
+	now := time.Now()
+	accepted := realTLSAttestationResultForAGTP(t)
+	expectedBinding, err := atls.IdentityBindingFromValidation(accepted.validation)
+	if err != nil {
+		t.Fatalf("IdentityBindingFromValidation() error = %v", err)
+	}
+
+	values := identitypolicy.Values{
+		Service:              "dialogue-distribution",
+		Tenant:               "tenant-a",
+		Deployment:           "prod",
+		Workload:             "line-distributor",
+		Agent:                "agent-a",
+		TaskID:               "task-dialogue-001",
+		ThreadID:             "thread-scene-001",
+		DelegationID:         "delegation-dialogue-001",
+		IntentRef:            "urn:agtp:intent:dialogue:distribute:v1",
+		Scopes:               []string{"dialogue:read", "dialogue:distribute"},
+		Resources:            []string{"urn:agtp:resource:script:scene-001"},
+		AuthorizationDetails: []string{"purpose:line-distribution"},
+	}
+	manager := clientTestJWTIssuer{keyID: "manager-key", secret: []byte("manager-secret")}
+	agent := clientTestJWTIssuer{keyID: "agent-key-1", secret: []byte("agent-secret")}
+	grantToken := manager.issueIdentityGrant(t, now, map[string]any{
+		"service":               values.Service,
+		"tenant":                values.Tenant,
+		"deployment":            values.Deployment,
+		"workload":              values.Workload,
+		"agent":                 values.Agent,
+		"task_id":               values.TaskID,
+		"thread_id":             values.ThreadID,
+		"delegation_id":         values.DelegationID,
+		"intent_ref":            values.IntentRef,
+		"scopes":                values.Scopes,
+		"resources":             values.Resources,
+		"authorization_details": values.AuthorizationDetails,
+	})
+	bindingToken := agent.issueSessionBinding(t, now, agtp.IdentityGrantHash(grantToken), expectedBinding, nil)
+	replayServer := newClientTestHTTPSetNXReplayServer(t)
+	cfg := AttestedClientConfig{
+		IdentityPolicy: identitypolicy.Policy{
+			Mode:    identitypolicy.ModeRequired,
+			Require: identitypolicy.Requirements{L3: true, L4: true, L5: true, L6: true},
+			Expected: identitypolicy.Values{
+				Service:              values.Service,
+				Tenant:               values.Tenant,
+				Deployment:           values.Deployment,
+				Workload:             values.Workload,
+				Agent:                values.Agent,
+				TaskID:               values.TaskID,
+				ThreadID:             values.ThreadID,
+				DelegationID:         values.DelegationID,
+				IntentRef:            values.IntentRef,
+				Scopes:               values.Scopes,
+				Resources:            values.Resources,
+				AuthorizationDetails: values.AuthorizationDetails,
+			},
+		},
+		IdentityGrantJWT:   grantToken,
+		IdentityBindingJWT: bindingToken,
+		IdentityGrantJWTOptions: agtp.JWTVerifyOptions{
+			ExpectedIssuer:   "manager",
+			ExpectedAudience: "client-a",
+			ValidMethods:     []string{"HS256"},
+			KeyFunc:          clientTestKeyFunc(map[string][]byte{"manager-key": []byte("manager-secret")}),
+			Now:              now,
+		},
+		IdentityBindingJWTOptions: agtp.JWTVerifyOptions{
+			ExpectedIssuer:   "agent-a",
+			ExpectedAudience: "client-a",
+			ValidMethods:     []string{"HS256"},
+			KeyFunc:          clientTestKeyFunc(map[string][]byte{"agent-key-1": []byte("agent-secret")}),
+			Now:              now,
+		},
+		IdentityReplay: identitypolicy.NewSetNXReplayCacheWithClock(
+			context.Background(),
+			clientTestHTTPSetNXStore{baseURL: replayServer.server.URL, client: replayServer.server.Client()},
+			func() time.Time { return now },
+		),
+	}
+
+	observedIdentity, err := cfg.AGTPObservedIdentity()
+	if err != nil {
+		t.Fatalf("AGTPObservedIdentity() error = %v", err)
+	}
+	assertion, err := observedIdentity(&accepted.state, accepted.validation)
+	if err != nil {
+		t.Fatalf("observed identity error = %v", err)
+	}
+
+	type dialogueLine struct {
+		Speaker string
+		Text    string
+	}
+	type dialogueDistributionRequest struct {
+		Service  string
+		Agent    string
+		TaskID   string
+		ThreadID string
+		Intent   string
+		Lines    []dialogueLine
+	}
+	hasValue := func(values []string, want string) bool {
+		for _, value := range values {
+			if value == want {
+				return true
+			}
+		}
+		return false
+	}
+	distributeDialogue := func(assertion identitypolicy.Assertion, req dialogueDistributionRequest) ([]string, error) {
+		if assertion.Values.Service != req.Service ||
+			assertion.Values.Agent != req.Agent ||
+			assertion.Values.TaskID != req.TaskID ||
+			assertion.Values.ThreadID != req.ThreadID ||
+			req.Intent != "セリフ配布" ||
+			!hasValue(assertion.Values.Scopes, "dialogue:distribute") {
+			return nil, identitypolicy.ErrMismatch
+		}
+		lines := make([]string, 0, len(req.Lines))
+		for _, line := range req.Lines {
+			lines = append(lines, line.Speaker+": "+line.Text)
+		}
+		return lines, nil
+	}
+
+	request := dialogueDistributionRequest{
+		Service:  "dialogue-distribution",
+		Agent:    "agent-a",
+		TaskID:   "task-dialogue-001",
+		ThreadID: "thread-scene-001",
+		Intent:   "セリフ配布",
+		Lines: []dialogueLine{
+			{Speaker: "alice", Text: "おはよう、準備できた?"},
+			{Speaker: "bob", Text: "はい、すぐ始めます。"},
+		},
+	}
+	gotLines, err := distributeDialogue(assertion, request)
+	if err != nil {
+		t.Fatalf("distributeDialogue() error = %v", err)
+	}
+	wantLines := []string{
+		"alice: おはよう、準備できた?",
+		"bob: はい、すぐ始めます。",
+	}
+	if len(gotLines) != len(wantLines) {
+		t.Fatalf("distributed lines = %v, want %v", gotLines, wantLines)
+	}
+	for i := range wantLines {
+		if gotLines[i] != wantLines[i] {
+			t.Fatalf("distributed line[%d] = %q, want %q", i, gotLines[i], wantLines[i])
+		}
+	}
+
+	wrongTask := request
+	wrongTask.TaskID = "task-dialogue-002"
+	if _, err := distributeDialogue(assertion, wrongTask); !errors.Is(err, identitypolicy.ErrMismatch) {
+		t.Fatalf("wrong task dialogue distribution error = %v, want %v", err, identitypolicy.ErrMismatch)
+	}
+
+	_, err = observedIdentity(&accepted.state, accepted.validation)
+	if !errors.Is(err, identitypolicy.ErrReplayDetected) {
+		t.Fatalf("replayed observed identity error = %v, want %v", err, identitypolicy.ErrReplayDetected)
+	}
+}
+
 func TestAGTPObservedIdentityRedTeamRealTLSAttestationBinding(t *testing.T) {
 	accepted := realTLSAttestationResultForAGTP(t)
 	fixture := newClientTestAGTPFixture(t, accepted.validation)

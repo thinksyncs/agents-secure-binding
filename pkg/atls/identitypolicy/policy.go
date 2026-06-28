@@ -635,10 +635,17 @@ func validateReferenceValue(value string) error {
 	if err := validateValue(value); err != nil {
 		return err
 	}
+	hasNamespace := false
 	for _, r := range value {
-		if unicode.IsSpace(r) {
+		if r == ':' {
+			hasNamespace = true
+		}
+		if r < '!' || r > '~' || unicode.IsSpace(r) {
 			return ErrUnsafeValue
 		}
+	}
+	if !hasNamespace || strings.HasPrefix(value, ":") || strings.HasSuffix(value, ":") {
+		return ErrUnsafeValue
 	}
 	return nil
 }

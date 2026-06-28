@@ -63,6 +63,20 @@ func TestVerifySessionIdentityCWTRejectsMissingReplayCache(t *testing.T) {
 	}
 }
 
+func TestVerifySessionIdentityCWTRejectsNaturalLanguageSemanticReference(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	keys := newTestCWTKeySet(t)
+	grantClaims := testDefaultCWTGrantClaims(now)
+	grantClaims["intent_ref"] = "セリフ配布"
+	grantToken := signTestCWT(t, "manager-key", keys.manager, grantClaims)
+	bindingToken := signTestCWT(t, "agent-key-1", keys.agent, testDefaultCWTBindingClaims(now, IdentityGrantCWTHash(grantToken)))
+
+	_, err := VerifySessionIdentityCWT(grantToken, bindingToken, testSessionIdentityCWTOptions(now, keys))
+	if !errors.Is(err, identitypolicy.ErrUnsafeValue) {
+		t.Fatalf("VerifySessionIdentityCWT() error = %v, want %v", err, identitypolicy.ErrUnsafeValue)
+	}
+}
+
 func TestVerifySessionIdentityCWTRedTeamRejectsCOSEProfileAttacks(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	keys := newTestCWTKeySet(t)
