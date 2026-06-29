@@ -4,6 +4,13 @@ cmd/manager/img
 
 .cov
 
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Local IETF draft workspace
+docs/IETF/
+
 *.pem
 
 dist/
