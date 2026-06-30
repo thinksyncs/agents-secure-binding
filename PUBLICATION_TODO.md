@@ -14,8 +14,8 @@ Latest recorded remote implementation checkpoint:
 
 | Commit | Workflow | Run | Result | Date |
 | --- | --- | --- | --- | --- |
-| `b493d2c3733cd0fa5c35035175f5f9d3466f92f7` | `CI` | `28431874162` | Success | 2026-06-30 UTC |
-| `b493d2c3733cd0fa5c35035175f5f9d3466f92f7` | `Security Red Team` | `28431874166` | Success | 2026-06-30 UTC |
+| `444b81d2484214b2247b31013b372f73937808c7` | `CI` | `28434430030` | Success | 2026-06-30 UTC |
+| `444b81d2484214b2247b31013b372f73937808c7` | `Security Red Team` | `28434430103` | Success | 2026-06-30 UTC |
 
 Local pre-publication gate after the README/module-path/runtime hardening work:
 
