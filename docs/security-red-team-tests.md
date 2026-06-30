@@ -261,3 +261,12 @@ Run the response-cache red-team tests with:
 ```sh
 env GOCACHE=/tmp/go-build-asb go test -count=1 -run 'ResponseCachePolicyRedTeam' ./pkg/agtp
 ```
+
+Hardware-backed attestation replay coverage is intentionally separated from the
+dependency-free CI profile. Use the manual `Hardware Attestation Red Team`
+workflow with a confidential self-hosted runner, or run the same gate directly
+on such a runner:
+
+```sh
+go run ./cmd/hardware-attestation-redteam --platform auto
+```

@@ -1,0 +1,91 @@
+name: Hardware Attestation Red Team
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_labels_json:
+        description: "JSON array for the confidential self-hosted runner labels"
+        required: true
+        default: '["self-hosted","linux"]'
+      platform:
+        description: "Hardware attestation platform"
+        required: true
+        type: choice
+        default: auto
+        options:
+          - auto
+          - snp
+          - snp-vtpm
+          - tdx
+      expected_host_data_hex:
+        description: "Optional SEV-SNP HostData value, hex encoded"
+        required: false
+        default: ""
+      require_kernel_hashes:
+        description: "Require runner-provided kernel-hashes=on evidence"
+        required: true
+        type: boolean
+        default: false
+      kernel_hashes_evidence:
+        description: "Set true only when the runner has verified kernel-hashes=on"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  hardware-red-team:
+    runs-on: ${{ fromJSON(inputs.runner_labels_json) }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.x
+          cache-dependency-path: go.sum
+
+      - name: Run hardware attestation replay gate
+        env:
+          ASB_ATTESTATION_PLATFORM: ${{ inputs.platform }}
+          ASB_EXPECTED_HOST_DATA_HEX: ${{ inputs.expected_host_data_hex }}
+          ASB_REQUIRE_KERNEL_HASHES: ${{ inputs.require_kernel_hashes }}
+          ASB_KERNEL_HASHES_EVIDENCE: ${{ inputs.kernel_hashes_evidence }}
+          GOTOOLCHAIN: go1.26.0+auto
+        run: |
+          set -euo pipefail
+
+          evidence_dir="${RUNNER_TEMP}/hardware-attestation-red-team"
+          mkdir -p "${evidence_dir}"
+
+          args=(
+            "--platform" "${ASB_ATTESTATION_PLATFORM}"
+            "--evidence-dir" "${evidence_dir}"
+          )
+
+          if [[ -n "${ASB_EXPECTED_HOST_DATA_HEX}" ]]; then
+            args+=("--expected-host-data-hex" "${ASB_EXPECTED_HOST_DATA_HEX}")
+          fi
+
+          if [[ "${ASB_REQUIRE_KERNEL_HASHES}" == "true" ]]; then
+            args+=("--require-kernel-hashes")
+          fi
+
+          if [[ "${ASB_KERNEL_HASHES_EVIDENCE}" == "true" ]]; then
+            args+=("--kernel-hashes-evidence")
+          fi
+
+          go run ./cmd/hardware-attestation-redteam "${args[@]}"
+
+      - name: Upload evidence fingerprints
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardware-attestation-red-team
+          path: ${{ runner.temp }}/hardware-attestation-red-team
+          if-no-files-found: ignore
+          retention-days: 14

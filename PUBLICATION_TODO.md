@@ -33,6 +33,11 @@ adapters. Inherited agent/manager runtime integration tests include VM, sudo,
 loopback listener, and Python package-install paths and remain separate
 integration coverage.
 
+Hardware-backed attestation replay now has a manual `Hardware Attestation Red
+Team` workflow for confidential self-hosted runners. It is not part of the
+default GitHub-hosted CI profile, and no successful hardware workflow run is
+recorded in this file yet.
+
 ## Dependency Alert Status
 
 GitHub Dependabot reports no open alerts for the default branch. The 10 alerts
@@ -106,4 +111,5 @@ claims, add or explicitly defer:
 - runtime gateway wiring beyond the route-assertion HTTP network harness;
 - longer randomized fuzz/property campaigns beyond the 60-second JWT/JWS fuzz
   pass and deterministic invariant matrix;
-- hardware-backed confidential-VM attestation replay coverage.
+- hardware-backed confidential-VM attestation replay coverage with a recorded
+  successful manual workflow run.

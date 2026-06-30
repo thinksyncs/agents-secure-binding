@@ -41,8 +41,9 @@ built from focused local checks, negative vectors, unit-level tests,
 dependency-free live-style harnesses, and deterministic invariant checks. Claims
 such as "this grant is accepted only for this session" still need real 0-RTT
 application payload transport, broader deployment gRPC pooling, runtime gateway
-wiring, longer randomized fuzz/property campaigns, and hardware-backed
-attestation coverage before they should be treated as broadly validated.
+wiring, longer randomized fuzz/property campaigns, and a recorded confidential
+hardware run of the manual attestation workflow before they should be treated as
+broadly validated.
 
 ## Verification Evidence
 
@@ -102,7 +103,7 @@ All checks passed. `docs/SSOT.pdf` rendered as a 24-page PDF.
 | Claim or attack class | Current evidence | Remaining evaluation |
 | --- | --- | --- |
 | Real network relay attack | Real TLS exporter binding is exercised in an in-memory TLS 1.3 harness. `TestVerifySessionIdentityJWTLiveRedTeamRejectsNetworkRelayAcrossEndpoints` runs two live loopback TLS endpoints and rejects a binding relayed from endpoint A to endpoint B. | Extend LRTT12 with an active forwarding proxy and deployment-specific TLS exporter material when the runtime server profile exists. |
-| Borrowed attestation | Binder mismatch, missing binder, report-data mismatch, and nonce mismatch are covered in local tests. | LRTT11: generate hardware-backed evidence in a confidential-VM or equivalent environment and replay it across another session. |
+| Borrowed attestation | Binder mismatch, missing binder, report-data mismatch, and nonce mismatch are covered in local tests. A manual GitHub Actions workflow now runs the hardware replay gate on a confidential self-hosted runner. | LRTT11 still needs a recorded successful confidential-hardware workflow run before it is counted as completed evidence. |
 | Token substitution and cross-JWT confusion | Covered by grant substitution and single-envelope JWT substitution tests. | Keep as regression coverage; add malformed serialization cases under fuzzing. |
 | Same TLS connection with multiple tasks | `TestVerifySessionIdentityJWTLiveRedTeamHTTP2ConnectionReuse` runs task A and task B over one reused HTTP/2 TLS connection and rejects task A's binding in task B's request context. `TestVerifySessionIdentityJWTLiveRedTeamGRPCConnectionReuse` applies the same acceptance check over one reused gRPC `ClientConn`. | Add broader deployment gRPC pooling and cross-authority-scope cases. |
 | HTTP/2 or gRPC connection reuse | The HTTP/2 and gRPC harnesses verify connection reuse, accepted same-context bindings, and rejected cross-context bindings. | Add deployment-specific gRPC pooling coverage when a product API is fixed. |
@@ -171,7 +172,7 @@ All checks passed. `docs/SSOT.pdf` rendered as a 24-page PDF.
 | LRTT08 | Superseded by LRTT15 gateway work | SSOT separates gateway mode from the direct-Agent trust model; `docs/gateway-routed-profile.md` now defines the companion profile | Full gateway-routed runtime harness remains future work |
 | LRTT09 | Completed locally | `TestValidateResponseCachePolicyRedTeamRejectsCallerDependentPublicCache`; `TestValidateResponseCachePolicyRedTeamPartitionsPrivateCache` | This is a dependency-free policy and cache-key harness, not a live AGTP daemon response-cache implementation |
 | LRTT10 | Not implemented | Tracked from the evaluation matrix | Real network relay with live endpoints and an active relay |
-| LRTT11 | Not implemented | Tracked from the evaluation matrix | Hardware-generated borrowed attestation replay |
+| LRTT11 | Workflow added; hardware run not recorded | `Hardware Attestation Red Team` runs `cmd/hardware-attestation-redteam` on a confidential self-hosted runner and rejects stale evidence across two verifier challenges | Counts as completed only after a successful confidential-hardware run is recorded |
 | LRTT12 | Completed for the dependency-free loopback harness | `TestVerifySessionIdentityJWTLiveRedTeamRejectsNetworkRelayAcrossEndpoints` | Uses two live local TLS endpoints and relayed profile material; it is not a full malicious forwarding proxy |
 | LRTT13 | Completed for local HTTP/2 and gRPC reuse | `TestVerifySessionIdentityJWTLiveRedTeamHTTP2ConnectionReuse`; `TestVerifySessionIdentityJWTLiveRedTeamGRPCConnectionReuse` | Broader deployment gRPC pooling coverage remains future work |
 | LRTT14 | Completed for local TLS resumption, pre-binding rejection, and QUIC/TLS early-data authentication gating | `TestVerifySessionIdentityJWTLiveRedTeamRejectsTLSResumptionReplayAndPreBinding`; `TestVerifySessionIdentityJWTLiveRedTeamRejectsQUICEarlyDataAuthentication` | End-to-end application 0-RTT payload behavior remains future work if a QUIC application profile is introduced |
@@ -210,6 +211,8 @@ All checks passed. `docs/SSOT.pdf` rendered as a 24-page PDF.
 - Added response-cache policy coverage for caller-dependent shared-cache
   leakage and private cache partitioning.
 - Added the dedicated `.github/workflows/security-red-team.yaml` workflow.
+- Added the manual `.github/workflows/hardware-attestation-red-team.yaml`
+  workflow for confidential self-hosted runner attestation replay evidence.
 - Added a SEV-SNP HostData and `kernel-hashes=on` appraisal contract with
   fail-closed tests.
 
@@ -218,8 +221,10 @@ All checks passed. `docs/SSOT.pdf` rendered as a 24-page PDF.
 These are not blockers for the completed branch; they are profile or deployment
 boundaries that need separate work if the project chooses to support them.
 
-- Hardware-generated confidential-VM attestation evidence is not produced inside
-  GitHub Actions.
+- Hardware-generated confidential-VM attestation evidence is not produced by the
+  default GitHub-hosted CI runners. The manual hardware workflow requires a
+  confidential self-hosted runner, and no successful hardware run is recorded
+  here yet.
 - CWT/COSE verification exists in `pkg/agtp`, but client configuration is still
   wired for the JWT/JWS runtime path.
 - Replay race coverage uses a local HTTP SETNX-style service, not a real
